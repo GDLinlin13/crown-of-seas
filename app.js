@@ -88,13 +88,12 @@ function heroModal(id){
 
 /* ---------- HOME ---------- */
 RENDER.home = () => {
-  const ready = setupReady();
+
   $('#s-home').innerHTML = `
     <div class="scene"><div class="bg" role="img" aria-label="Crown of Seas key art"></div>
-      <div class="scenebtns"><button class="btn" data-tab="setup">Play · ${ready ? 'Quick Start' : 'Set Up'}</button><button class="btn blue" data-tab="collection">Collection</button></div></div>
+      <div class="scenebtns" style="grid-template-columns:1fr"><button class="btn glow" data-tab="setup" style="font-size:24px">Play</button></div></div>
     <div class="row between" style="margin-top:8px"><div><div class="otl" style="font-size:26px;line-height:1">CHESS TD</div><div class="muted" style="font-size:12px;font-weight:800">Tower defense on a chess board · 12 crews · 30 waves</div></div></div>
     <div class="tiles">
-      <button class="mode" data-tab="setup"><b>New Run</b><small>Up to 5 crews · 7 towers each</small></button>
       <button class="mode" data-tab="collection"><b>Collection</b><small>${S.owned.length}/139 heroes · ${activeCrews().length}/12 crews</small></button>
       <button class="mode" data-tab="summon"><b>Grand Summon</b><small>1x 300 coins · 10x guarantees Epic</small></button>
       <button class="mode" data-tab="quests"><b>Quests</b><small>${QUESTS.filter(q => questDone(q) && !S.claimed.includes(q.id)).length} rewards ready</small></button>
