@@ -208,6 +208,7 @@ function damage(e, amt, t, opts = {}){
   if(!e.alive) return;
   const H = t ? HEROES[t.id] : null;
   if(H && H.passive.id === 'giant' && e.boss) amt *= 1.3;
+  if(e.markT > 0) amt *= 1 + e.markF;
   const st = t && t.st, a = amt*(1 - e.armor*(1 - (st ? st.pierce : 0)));
   e.hp -= a; e.hit = 0.08;
   if(t){ R.dealt[t.id] = (R.dealt[t.id] || 0) + a; }
@@ -230,15 +231,58 @@ function kill(e, t){
   if(e.boss) R.shake = 0.6;
 }
 function castSkill(t, st){
-  const H = HEROES[t.id], inRange = R.enemies.filter(e => e.alive && Math.hypot(e.x - t.x, e.y - t.y) <= st.range*TS);
-  R.texts.push({x:t.x, y:t.y - 50, text:H.skill.toUpperCase() + '!', col:CREW[H.crew].col, t:1.1, size:H.captain ? 24 : 18});
-  if(H.captain){ for(const e of R.enemies.filter(e => e.alive)) damage(e, st.dmg*3, t); R.flash = 0.35; R.flashCol = CREW[H.crew].col; R.shake = 0.3; return; }
-  if(!inRange.length && H.role !== 'support') { t.energy = 7; return; }
-  if(H.role === 'striker'){ const e = inRange.sort((a, b) => Math.hypot(a.x-t.x, a.y-t.y) - Math.hypot(b.x-t.x, b.y-t.y))[0]; for(let i=0;i<5;i++) damage(e, st.dmg*1.2, t, {noProc:i > 0}); fxSlash(e.x, e.y, CREW[H.crew].col); }
-  else if(H.role === 'sniper'){ const e = inRange.sort((a, b) => b.hp - a.hp)[0]; damage(e, st.dmg*4.5, t, {crit:true}); R.fx.push({beam:true, x:t.x, y:t.y-20, tx:e.x, ty:e.y, t:0.25, col:CREW[H.crew].col}); }
-  else if(H.role === 'mage'){ const e = inRange.sort((a, b) => b.dist - a.dist)[0]; for(const o of R.enemies) if(o.alive && Math.hypot(o.x - e.x, o.y - e.y) <= 1.5*TS) damage(o, st.dmg*2.5, t); R.fx.push({ring:true, x:e.x, y:e.y, r:1.5*TS, t:0.4, col:CREW[H.crew].col}); }
-  else if(H.role === 'guardian'){ for(const e of inRange){ e.stun = Math.max(e.stun, 1.5 + st.skillStun); damage(e, st.dmg*1.5, t); } R.fx.push({ring:true, x:t.x, y:t.y, r:st.range*TS, t:0.4, col:'#ffe48a'}); }
-  else { for(const o of R.towers) if(Math.hypot(o.x - t.x, o.y - t.y) <= 1.6*TS) o.rallyT = 5; R.fx.push({ring:true, x:t.x, y:t.y, r:1.6*TS, t:0.4, col:'#7be36b'}); }
+  const H = HEROES[t.id], col = CREW[H.crew].col, alive = R.enemies.filter(e => e.alive);
+  const inRange = alive.filter(e => Math.hypot(e.x - t.x, e.y - t.y) <= st.range*TS);
+  const near = (c, r) => alive.filter(o => o.alive && Math.hypot(o.x - c.x, o.y - c.y) <= r*TS);
+  const ring = (x, y, r, c = col) => R.fx.push({ring:true, x, y, r, t:0.4, col:c});
+  const stun = (e, s) => { e.stun = Math.max(e.stun, s); };
+  const slow = (e, f, s) => { e.slowT = Math.max(e.slowT, s); e.slowF = Math.max(e.slowF, e.boss ? f/2 : f); };
+  const burn = (e, dps, s) => { e.burn = Math.max(e.burn, s); e.burnDps = Math.max(e.burnDps, dps); };
+  const mark = (e, f, s) => { e.markT = Math.max(e.markT || 0, s); e.markF = Math.max(e.markF || 0, f); };
+  const push = (e, tiles) => { e.dist = Math.max(0, e.dist - (e.boss ? tiles/3 : tiles)*TS); const p = posAt(e.dist); e.x = p.x; e.y = p.y; };
+  R.texts.push({x:t.x, y:t.y - 50, text:H.skill.toUpperCase() + '!', col, t:1.1, size:H.captain ? 24 : 18});
+  if(H.captain){
+    const C = CAPTAIN[H.crew]; let hit = 0;
+    for(const e of alive){ damage(e, st.dmg*C.mul, t); hit++; if(!e.alive) continue;
+      if(C.extra === 'stun') stun(e, 1.5 + st.skillStun);
+      else if(C.extra === 'quake'){ stun(e, 1 + st.skillStun); push(e, 1); }
+      else if(C.extra === 'pull') push(e, 2);
+      else if(C.extra === 'gale') push(e, 2.5);
+      else if(C.extra === 'burn') burn(e, st.dmg*0.6, 4);
+      else if(C.extra === 'soul'){ if(!e.boss && e.hp < e.maxHp*0.25) damage(e, e.hp + 1, t, {noProc:true}); }
+      else if(C.extra === 'melt'){ burn(e, st.dmg*0.4, 3); mark(e, 0.3, 5); }
+      else if(C.extra === 'slow') slow(e, 0.6, 5); }
+    if(C.extra === 'smash'){ const e = R.enemies.filter(e => e.alive).sort((a, b) => b.hp - a.hp)[0]; if(e){ damage(e, st.dmg*8, t, {crit:true}); fxBurst(e.x, e.y, col, 24); } }
+    if(C.extra === 'pull') R.base = Math.min(R.baseMax, R.base + 1);
+    if(C.extra === 'heal') R.base = Math.min(R.baseMax, R.base + 2);
+    if(C.extra === 'gold' && hit) R.gold += Math.floor(hit/3);
+    R.flash = 0.35; R.flashCol = col; R.shake = 0.3; return;
+  }
+  const k = H.kit, selfOnly = k === 'rally' || k === 'mend';
+  if(!inRange.length && !selfOnly){ t.energy = 7; return; }
+  const front = inRange.slice().sort((a, b) => b.dist - a.dist)[0];
+  if(k === 'flurry'){ const e = inRange.sort((a, b) => Math.hypot(a.x-t.x, a.y-t.y) - Math.hypot(b.x-t.x, b.y-t.y))[0]; for(let i=0;i<5;i++) damage(e, st.dmg*1.2, t, {noProc:i > 0}); fxSlash(e.x, e.y, col); }
+  else if(k === 'snipe'){ const e = inRange.sort((a, b) => b.hp - a.hp)[0]; damage(e, st.dmg*4.5, t, {crit:true}); R.fx.push({beam:true, x:t.x, y:t.y-20, tx:e.x, ty:e.y, t:0.25, col}); }
+  else if(k === 'blast'){ for(const o of near(front, 1.5)) damage(o, st.dmg*2.5, t); ring(front.x, front.y, 1.5*TS); fxBurst(front.x, front.y, col, 14); }
+  else if(k === 'quake'){ for(const e of inRange){ stun(e, 1.5 + st.skillStun); damage(e, st.dmg*1.5, t); } ring(t.x, t.y, st.range*TS, '#ffe48a'); }
+  else if(k === 'rally'){ for(const o of R.towers) if(Math.hypot(o.x - t.x, o.y - t.y) <= 1.6*TS) o.rallyT = 5; ring(t.x, t.y, 1.6*TS, '#7be36b'); }
+  else if(k === 'sweep'){ for(const e of inRange){ damage(e, st.dmg*2, t); fxSlash(e.x, e.y, col); } ring(t.x, t.y, st.range*TS); }
+  else if(k === 'inferno'){ for(const o of near(front, 1.3)){ damage(o, st.dmg*1.8, t); burn(o, st.dmg*0.5, 3); } ring(front.x, front.y, 1.3*TS, '#ff7a2e'); fxBurst(front.x, front.y, '#ff7a2e', 16); }
+  else if(k === 'frost'){ for(const e of inRange){ damage(e, st.dmg*1.2, t); slow(e, 0.5, 3); } ring(t.x, t.y, st.range*TS, '#8fe3ff'); }
+  else if(k === 'chain'){ let cur = front; const hit = new Set();
+    for(let i=0;i<5 && cur;i++){ hit.add(cur); damage(cur, st.dmg*2.2, t, {noProc:i > 0}); const nx = alive.filter(o => o.alive && !hit.has(o) && Math.hypot(o.x - cur.x, o.y - cur.y) <= 1.5*TS).sort((a, b) => Math.hypot(a.x-cur.x, a.y-cur.y) - Math.hypot(b.x-cur.x, b.y-cur.y))[0];
+      R.fx.push({beam:true, x:i ? cur.x : t.x, y:i ? cur.y : t.y - 20, tx:(nx || cur).x, ty:(nx || cur).y, t:0.25, col:'#bfe8ff'}); cur = nx; } }
+  else if(k === 'venom'){ for(const o of near(front, 1.3)){ damage(o, st.dmg, t); o.poison = 5; o.poisonPct = o.boss ? 0.004 : 0.012; o.poisonStacks = Math.min(3, (o.poisonStacks || 0) + 1); } ring(front.x, front.y, 1.3*TS, '#9be86b'); }
+  else if(k === 'mend'){ R.base = Math.min(R.baseMax, R.base + 1); if(front) damage(front, st.dmg*1.5, t); ring(t.x, t.y, 0.8*TS, '#7be36b'); }
+  else if(k === 'plunder'){ R.gold += 2 + (t.star - 1); damage(front, st.dmg*2.5, t); R.texts.push({x:t.x, y:t.y - 30, text:`+${2 + t.star - 1}g`, col:'#ffd76a', t:0.8, size:16}); }
+  else if(k === 'gale'){ for(const e of inRange){ damage(e, st.dmg*1.3, t); push(e, 1.5); } ring(t.x, t.y, st.range*TS, '#cfe9ff'); }
+  else if(k === 'web'){ for(const e of inRange){ damage(e, st.dmg*0.8, t); slow(e, 0.6, 4); } ring(t.x, t.y, st.range*TS, '#e0d6ff'); }
+  else if(k === 'execute'){ const e = inRange.sort((a, b) => a.hp/a.maxHp - b.hp/b.maxHp)[0];
+    if(!e.boss && e.hp < e.maxHp*0.25){ damage(e, e.hp + 1, t, {crit:true}); R.texts.push({x:e.x, y:e.y - 40, text:'FINISHED', col:'#ff4d6d', t:0.8, size:16}); } else damage(e, st.dmg*4, t, {crit:true}); fxSlash(e.x, e.y, col); }
+  else if(k === 'barrage'){ for(let i=0;i<6;i++){ const e = inRange[Math.floor(Math.random()*inRange.length)]; R.projs.push({x:t.x, y:t.y - 16, tgt:e, dmg:st.dmg*1.2, crit:false, hits:1, splash:0, slow:0, col, t, sp:500 + i*60}); } }
+  else if(k === 'mark'){ for(const e of inRange){ damage(e, st.dmg*1.2, t); mark(e, 0.3, 5); } ring(t.x, t.y, st.range*TS, '#ff6a8a'); }
+  else if(k === 'grip'){ for(const o of near(front, 1.4)){ stun(o, 2 + st.skillStun); damage(o, st.dmg*1.2, t); } ring(front.x, front.y, 1.4*TS, '#c99bff'); }
+  else if(k === 'lull'){ for(const e of near(t, st.range*1.4)){ stun(e, 2.5 + st.skillStun); damage(e, st.dmg*0.5, t, {noProc:true}); } ring(t.x, t.y, st.range*1.4*TS, '#ffb3e6'); }
 }
 function update(dt){
   R.time += dt; if(R.shake > 0) R.shake -= dt; if(R.flash > 0) R.flash -= dt;
@@ -250,7 +294,7 @@ function update(dt){
   if(R.spawnQ.length){ R.spawnT -= dt; if(R.spawnT <= 0){ const it = R.spawnQ.shift(); spawn(it); R.spawnT = it.gap; } }
   // enemies
   for(const e of R.enemies){ if(!e.alive) continue;
-    if(e.hit > 0) e.hit -= dt;
+    if(e.hit > 0) e.hit -= dt; if(e.markT > 0) e.markT -= dt;
     if(e.burn > 0){ e.burn -= dt; damage(e, e.burnDps*dt, null, {noProc:true}); }
     if(e.poison > 0){ e.poison -= dt; damage(e, e.maxHp*e.poisonPct*e.poisonStacks*dt, null, {noProc:true}); } else e.poisonStacks = 0;
     if(!e.alive) continue;

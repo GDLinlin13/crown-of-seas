@@ -312,7 +312,7 @@ function renderUI(){
     sh.innerHTML = `<div class="row" style="gap:10px"><img src="${cardArt(t.id)}" alt="" style="width:54px;height:72px;object-fit:cover;border-radius:9px;border:2px solid ${rarCol(H)}">
       <div style="flex:1;min-width:0"><div class="row between"><b class="otl" style="font-size:20px">${H.name} <span class="stars">${'★'.repeat(t.star)}</span>${t.lvl > 1 ? ` <span style="color:#7fe7ff;font-size:14px">+${t.lvl-1}</span>` : ''}</b><button class="bx" id="sx" aria-label="Close">✕</button></div>
       <div class="muted" style="font-size:11.5px">${Math.round(st.dmg)} dmg · ${st.range.toFixed(1)} range · ${st.aspd.toFixed(2)}/s · ${pct(st.crit)} crit · dealt ${fmt(R.dealt[t.id] || 0)}</div>
-      <div class="muted" style="font-size:11.5px"><b style="color:var(--ink)">${H.skill}:</b> ${H.captain ? 'hits every enemy for 300%' : ROLES[H.role].sdesc} · <b style="color:var(--ink)">Passive:</b> ${H.passive.txt}</div></div></div>
+      <div class="muted" style="font-size:11.5px"><b style="color:var(--ink)">${H.skill}:</b> ${skillTxt(H)} · <b style="color:var(--ink)">Passive:</b> ${H.passive.txt}</div></div></div>
       <div class="row" style="margin-top:8px"><button class="btn sm" id="sup" ${t.lvl >= 5 || R.gold < upgradeCost(t) ? 'disabled' : ''}>${t.lvl >= 5 ? 'Max level' : `Upgrade · ${upgradeCost(t)}G`}</button><button class="btn red sm" id="ssell">Sell · +${sellValue(t)}G</button><span class="muted" style="font-size:11px">Drag it to move</span></div>`;
     sh.classList.remove('hidden');
     $('#sx').onclick = () => { R.sel = null; uiDirty(); }; $('#sup').onclick = () => upgradeTower(t); $('#ssell').onclick = () => sellTower(t);
