@@ -13,20 +13,22 @@ $('#overlay').addEventListener('click', e => { if(e.target.id === 'overlay' && !
 /* ---------- save ---------- */
 const SAVE_KEY = 'chessTD_v1';
 const STARTER_CREWS = ['DW','CS','TV','RB','IG'];   // you start owning 3 heroes from each of these, so 5/12 crews are active
+// Missions come in chains: only the current step of each chain shows, and claiming it reveals the next one.
+// (ids of the older single missions are kept so anything already claimed stays claimed)
+const CHAIN = (chain, stat, steps) => steps.map(([id, goal, txt, reward], i) => ({id, chain, step:i + 1, steps:steps.length, stat, goal, txt, reward}));
 const QUESTS = [
-  {id:'w10',  txt:'Clear wave 10 in a run',             goal:10,  stat:'best',  reward:{gems:20}},
-  {id:'w20',  txt:'Clear wave 20 in a run',             goal:20,  stat:'best',  reward:{gems:40}},
-  {id:'win',  txt:'Clear any Quest stage',              goal:1,   stat:'wins',  reward:{gems:60}},
-  {id:'s5',   txt:'Clear Quest Stage 5',                goal:5,   stat:'stage', reward:{gems:60}},
-  {id:'s10',  txt:'Clear Quest Stage 10',               goal:10,  stat:'stage', reward:{gems:120}},
-  {id:'s20',  txt:'Clear Quest Stage 20',               goal:20,  stat:'stage', reward:{gems:300}},
-  {id:'hard1',txt:'Clear a Hard stage',                 goal:1,   stat:'hard',  reward:{gems:50}},
-  {id:'pvp1', txt:'Win a PvP match (last one standing)',goal:1,   stat:'pvpWins',reward:{gems:150}},
-  {id:'k500', txt:'Defeat 500 enemies',                 goal:500, stat:'kills', reward:{coins:300}},
-  {id:'k2000',txt:'Defeat 2,000 enemies',               goal:2000,stat:'kills', reward:{gems:100}},
-  {id:'t3',   txt:'Reach a Tier 3 crew synergy (6/6)',  goal:1,   stat:'tier3', reward:{gems:60}},
-  {id:'star3',txt:'Merge a 3-star tower',               goal:1,   stat:'star3', reward:{gems:30}},
-  {id:'runs5',txt:'Play 5 runs',                        goal:5,   stat:'runs',  reward:{coins:600}},
+  ...CHAIN('stage', 'stage', [['win', 1, 'Clear Quest Stage 1', {gems:60}], ['s5', 5, 'Clear Quest Stage 5', {gems:60}], ['s10', 10, 'Clear Quest Stage 10', {gems:120}],
+    ['s15', 15, 'Clear Quest Stage 15', {gems:180}], ['s20', 20, 'Clear Quest Stage 20', {gems:300}]]),
+  ...CHAIN('hard', 'hard', [['hard1', 1, 'Clear 1 Hard stage', {gems:50}], ['hard5', 5, 'Clear 5 Hard stages', {gems:100}], ['hard10', 10, 'Clear 10 Hard stages', {gems:200}],
+    ['hard15', 15, 'Clear 15 Hard stages', {gems:300}], ['hard20', 20, 'Clear all 20 Hard stages', {gems:500}]]),
+  ...CHAIN('pvp', 'pvpWins', [['pvp1', 1, 'Win a PvP match (last one standing)', {gems:150}], ['pvp3', 3, 'Win 3 PvP matches', {gems:200}], ['pvp5', 5, 'Win 5 PvP matches', {gems:300}],
+    ['pvp10', 10, 'Win 10 PvP matches', {gems:500}]]),
+  ...CHAIN('wave', 'best', [['w10', 10, 'Clear wave 10 in a run', {gems:20}], ['w20', 20, 'Clear wave 20 in a run', {gems:40}], ['w30', 30, 'Clear all 30 waves in a run', {gems:60}]]),
+  ...CHAIN('kills', 'kills', [['k500', 500, 'Defeat 500 enemies', {coins:300}], ['k2000', 2000, 'Defeat 2,000 enemies', {gems:100}], ['k5000', 5000, 'Defeat 5,000 enemies', {gems:150}],
+    ['k10000', 10000, 'Defeat 10,000 enemies', {gems:250}], ['k25000', 25000, 'Defeat 25,000 enemies', {gems:400}]]),
+  ...CHAIN('runs', 'runs', [['runs5', 5, 'Play 5 runs', {coins:600}], ['runs20', 20, 'Play 20 runs', {coins:1500}], ['runs50', 50, 'Play 50 runs', {gems:150}], ['runs100', 100, 'Play 100 runs', {gems:300}]]),
+  ...CHAIN('tier3', 'tier3', [['t3', 1, 'Reach a Tier 3 crew synergy (6/6)', {gems:60}]]),
+  ...CHAIN('star3', 'star3', [['star3', 1, 'Merge a 3-star tower', {gems:30}]]),
 ];
 const starterRoster = () => STARTER_CREWS.flatMap(cid => CREW[cid].ids.slice().sort((a, b) => RARITY[HEROES[a].rar].ord - RARITY[HEROES[b].rar].ord || b - a).slice(0, 3));
 function newSave(){ return {name:'', coins:3000, gems:300, shards:0, pity:0, owned:[], deck:{crews:[], picks:{}}, claimed:[], st:{n:{}, h:{}}, stats:{best:0, wins:0, kills:0, tier3:0, star3:0, runs:0, stage:0, hard:0, pvpWins:0, pvpBest:0}}; }
@@ -102,7 +104,7 @@ RENDER.home = () => {
     <div class="tiles">
       <button class="mode" data-tab="collection"><b>Collection</b><small>${S.owned.length}/139 heroes · ${activeCrews().length}/12 crews</small></button>
       <button class="mode" data-tab="summon"><b>Grand Summon</b><small>1x 300 coins · 10x guarantees Epic</small></button>
-      <button class="mode" data-tab="quests"><b>Missions</b><small>${QUESTS.filter(q => questDone(q) && !S.claimed.includes(q.id)).length} rewards ready</small></button>
+      <button class="mode" data-tab="quests"><b>Missions</b><small>${currentQuests().filter(q => questDone(q) && !S.claimed.includes(q.id)).length} rewards ready</small></button>
       <button class="mode" id="howto"><b>How to Play</b><small>Mix crews · Synergy 2/4/6</small></button>
     </div>
     <div class="card" style="margin-top:10px"><div class="row between"><b>Quest progress</b><b class="otl" style="font-size:22px">${S.stats.stage}/${STAGE_N}</b></div>
@@ -303,15 +305,18 @@ RENDER.setup = () => {
 
 /* ---------- QUESTS ---------- */
 const questDone = q => (S.stats[q.stat] || 0) >= q.goal;
+const currentQuests = () => [...new Set(QUESTS.map(q => q.chain))].map(ch => { const st = QUESTS.filter(q => q.chain === ch); return st.find(q => !S.claimed.includes(q.id)) || st[st.length - 1]; })
+  .sort((x, y) => (S.claimed.includes(x.id) ? 1 : 0) - (S.claimed.includes(y.id) ? 1 : 0) || (questDone(y) ? 1 : 0) - (questDone(x) ? 1 : 0));
 const rewardTxt = r => r.gems ? `${r.gems} gems` : r.coins ? `${r.coins} coins` : 'Free crew unlock token';
 RENDER.quests = () => {
-  $('#s-quests').innerHTML = `<div class="h1">Quests</div><div class="muted" style="margin-bottom:8px;font-weight:800">Earn gems, coins and crew-unlock tokens.</div>
-    ${QUESTS.map(q => { const v = Math.min(q.goal, S.stats[q.stat] || 0), done = v >= q.goal, cl = S.claimed.includes(q.id);
-      return `<div class="card quest" style="${cl ? 'opacity:.5' : ''}"><div><b>${q.txt}</b><div class="muted" style="font-size:12px">${rewardTxt(q.reward)} · ${fmt(v)}/${fmt(q.goal)}</div><div class="bar"><i style="width:${v/q.goal*100}%"></i></div></div>
+  $('#s-quests').innerHTML = `<div class="h1">Missions</div><div class="muted" style="margin-bottom:8px;font-weight:800">Earn gems and coins. Claim a mission to unlock its next step.</div>
+    ${currentQuests().map(q => { const v = Math.min(q.goal, S.stats[q.stat] || 0), done = v >= q.goal, cl = S.claimed.includes(q.id);
+      return `<div class="card quest" style="${cl ? 'opacity:.5' : ''}"><div><b>${q.txt}</b><div class="muted" style="font-size:12px">${rewardTxt(q.reward)} · ${fmt(v)}/${fmt(q.goal)}${q.steps > 1 ? ` · step ${q.step}/${q.steps}` : ''}${cl ? ' · all done' : ''}</div><div class="bar"><i style="width:${v/q.goal*100}%"></i></div></div>
         ${cl ? '<b style="color:var(--good)">✓</b>' : `<button class="btn sm" data-q="${q.id}" ${done ? '' : 'disabled'}>Claim</button>`}</div>`; }).join('')}`;
   $('#s-quests').querySelectorAll('[data-q]').forEach(b => b.onclick = () => { const q = QUESTS.find(x => x.id === b.dataset.q);
     if(q.reward.gems) S.gems += q.reward.gems; if(q.reward.coins) S.coins += q.reward.coins; if(q.reward.token) S.tokens++;
-    S.claimed.push(q.id); persist(); toast(`Claimed: ${rewardTxt(q.reward)}`); RENDER.quests(); });
+    S.claimed.push(q.id); persist(); const nx = QUESTS.find(x => x.chain === q.chain && x.step === q.step + 1);
+    toast(`Claimed: ${rewardTxt(q.reward)}${nx ? ` · Next: ${nx.txt}` : ''}`); RENDER.quests(); });
 };
 
 /* =====================================================================
