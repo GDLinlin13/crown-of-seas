@@ -27,11 +27,16 @@ const QUESTS = [
   ...CHAIN('kills', 'kills', [['k500', 500, 'Defeat 500 enemies', {coins:300}], ['k2000', 2000, 'Defeat 2,000 enemies', {gems:100}], ['k5000', 5000, 'Defeat 5,000 enemies', {gems:150}],
     ['k10000', 10000, 'Defeat 10,000 enemies', {gems:250}], ['k25000', 25000, 'Defeat 25,000 enemies', {gems:400}]]),
   ...CHAIN('runs', 'runs', [['runs5', 5, 'Play 5 runs', {coins:600}], ['runs20', 20, 'Play 20 runs', {coins:1500}], ['runs50', 50, 'Play 50 runs', {gems:150}], ['runs100', 100, 'Play 100 runs', {gems:300}]]),
-  ...CHAIN('tier3', 'tier3', [['t3', 1, 'Reach a Tier 3 crew synergy (6/6)', {gems:60}]]),
-  ...CHAIN('star3', 'star3', [['star3', 1, 'Merge a 3-star tower', {gems:30}]]),
+  ...CHAIN('clears', 'wins', [['c10', 10, 'Clear 10 stages (replays count)', {coins:800}], ['c25', 25, 'Clear 25 stages', {gems:100}], ['c50', 50, 'Clear 50 stages', {gems:200}],
+    ['c100', 100, 'Clear 100 stages', {gems:400}]]),
+  ...CHAIN('tier3', 'tier3', [['t3', 1, 'Reach a Tier 3 crew synergy (6/6)', {gems:60}], ['t3r5', 5, 'Reach Tier 3 synergy in 5 runs', {gems:80}],
+    ['t3r15', 15, 'Reach Tier 3 synergy in 15 runs', {gems:150}], ['t3r30', 30, 'Reach Tier 3 synergy in 30 runs', {gems:250}]]),
+  ...CHAIN('tier3x', 't3crews', [['t3x2', 2, 'Get 2 crews to Tier 3 in the same run', {gems:150}]]),
+  ...CHAIN('star3', 'star3', [['star3', 1, 'Merge a 3-star tower', {gems:30}], ['star3_3', 3, 'Merge 3 three-star towers', {gems:50}], ['star3_10', 10, 'Merge 10 three-star towers', {gems:100}],
+    ['star3_25', 25, 'Merge 25 three-star towers', {gems:200}], ['star3_50', 50, 'Merge 50 three-star towers', {gems:350}]]),
 ];
 const starterRoster = () => STARTER_CREWS.flatMap(cid => CREW[cid].ids.slice().sort((a, b) => RARITY[HEROES[a].rar].ord - RARITY[HEROES[b].rar].ord || b - a).slice(0, 3));
-function newSave(){ return {name:'', coins:3000, gems:300, shards:0, pity:0, owned:[], deck:{crews:[], picks:{}}, claimed:[], st:{n:{}, h:{}}, stats:{best:0, wins:0, kills:0, tier3:0, star3:0, runs:0, stage:0, hard:0, pvpWins:0, pvpBest:0}}; }
+function newSave(){ return {name:'', coins:3000, gems:300, shards:0, pity:0, owned:[], deck:{crews:[], picks:{}}, claimed:[], st:{n:{}, h:{}}, stats:{best:0, wins:0, kills:0, tier3:0, star3:0, runs:0, stage:0, hard:0, pvpWins:0, pvpBest:0, t3crews:0}}; }
 function loadSave(){
   try{ const s = JSON.parse(localStorage.getItem(SAVE_KEY));
     if(s && s.stats){ const m = Object.assign(newSave(), s); m.stats = Object.assign(newSave().stats, s.stats);
@@ -484,7 +489,8 @@ function endRun(win, quit){
   else coins = 5*cleared;
   S.coins += coins; S.gems += gems;
   S.stats.runs++; S.stats.kills += R.kills; S.stats.best = Math.max(S.stats.best, Math.min(30, cleared));
-  if(R.maxTier >= 3) S.stats.tier3 = 1; if(R.merged3) S.stats.star3 = 1;
+  if(R.maxTier >= 3) S.stats.tier3 = (S.stats.tier3 || 0) + 1;   // runs that reached a Tier 3 synergy
+  S.stats.t3crews = Math.max(S.stats.t3crews || 0, R.maxT3); S.stats.star3 = (S.stats.star3 || 0) + R.merged3;   // total 3-star merges
   persist();
   const title = pvp ? (win ? 'Last One Standing!' : `#${place} of 8`) : win ? (m.hard ? 'Hard Stage Clear!' : 'Stage Clear!') : quit ? 'Run ended' : 'Base fallen';
   const good = pvp ? place <= 3 : win;

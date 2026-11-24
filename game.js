@@ -83,7 +83,7 @@ function newRun(deck, mode = {kind:'stage', stage:1, hard:false}){
   R = {mode, waves:pvp ? Infinity : si.waves, hpMul:pvp ? 0.75 : si.hpMul, spdMul:pvp ? 1 : si.spdMul, rivals:pvp ? makeRivals() : null,
     deck:deck.slice(), crews:[...new Set(deck.map(id => HEROES[id].crew))], lock:null, path, gold:START_GOLD, base, baseMax:base,
     wave:0, waveOn:false, nextIn:0, spawnQ:[], spawnT:0, towers:[], bench:Array(BENCH).fill(null), shop:[], enemies:[], projs:[], fx:[], texts:[],
-    speed:1, paused:false, autoPlace:false, sel:null, benchSel:null, kills:0, leaks:0, shieldLeft:0, dealt:{}, time:0, over:false, best3:false, merged3:false, maxTier:0,
+    speed:1, paused:false, autoPlace:false, sel:null, benchSel:null, kills:0, leaks:0, shieldLeft:0, dealt:{}, time:0, over:false, best3:false, merged3:0, maxTier:0, maxT3:0,
     tr:newTreasureState(), treasures:[], trRerollFree:1, choosing:false, freeRerolls:0, revived:false, cannonT:10, M:null};
   rollShop(true);
   boardBg = renderBoard();
@@ -169,12 +169,13 @@ function mergeAll(){
         g3.sort((a, b) => b.board - a.board); const [keep, ...rest] = g3.slice(0, 3);
         keep.ref.star = star + 1; keep.ref.lvl = Math.max(...g3.slice(0,3).map(x => x.ref.lvl || 1)); keep.ref.spent = g3.slice(0,3).reduce((a, x) => a + (x.ref.spent || 0), 0);
         for(const x of rest){ if(x.board) R.towers.splice(R.towers.indexOf(x.ref), 1); else R.bench[x.i] = null; }
-        toast(`${HEROES[+id].name} merged to ${'★'.repeat(star + 1)}!`); if(star + 1 === 3) R.merged3 = true;
+        toast(`${HEROES[+id].name} merged to ${'★'.repeat(star + 1)}!`); if(star + 1 === 3) R.merged3++;
         if(keep.board) fxBurst(keep.ref.x, keep.ref.y, '#ffcf3d', 30);
         changed = true; break; }
       if(changed) break; } }
   if(R.bench.length > BENCH){ const extra = R.bench.splice(BENCH); for(const e of extra) if(e){ const k = R.bench.indexOf(null); if(k >= 0) R.bench[k] = e; } }
-  computeMods(); for(const s of allSynergy()) if(s.tier > R.maxTier) R.maxTier = s.tier;
+  computeMods(); const syn = allSynergy(); for(const s of syn) if(s.tier > R.maxTier) R.maxTier = s.tier;
+  R.maxT3 = Math.max(R.maxT3, syn.filter(s => s.tier >= 3).length);   // most crews at Tier 3 at the same time this run
 }
 const sellValue = t => t.temp ? 0 : HEROES[t.id].cost*[0,1,3,9][t.star] + Math.floor((t.spent || 0)/2);
 function sellTower(t){ R.gold += sellValue(t); R.towers.splice(R.towers.indexOf(t), 1); R.sel = null; computeMods(); toast(`Sold for ${sellValue(t)} gold`); uiDirty(); }
