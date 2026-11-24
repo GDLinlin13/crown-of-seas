@@ -16,7 +16,12 @@ const STARTER_CREWS = ['DW','CS','TV','RB','IG'];   // you start owning 3 heroes
 const QUESTS = [
   {id:'w10',  txt:'Clear wave 10 in a run',             goal:10,  stat:'best',  reward:{gems:20}},
   {id:'w20',  txt:'Clear wave 20 in a run',             goal:20,  stat:'best',  reward:{gems:40}},
-  {id:'win',  txt:'Win a run (survive all 30 waves)',   goal:1,   stat:'wins',  reward:{gems:60}},
+  {id:'win',  txt:'Clear any Quest stage',              goal:1,   stat:'wins',  reward:{gems:60}},
+  {id:'s5',   txt:'Clear Quest Stage 5',                goal:5,   stat:'stage', reward:{gems:60}},
+  {id:'s10',  txt:'Clear Quest Stage 10',               goal:10,  stat:'stage', reward:{gems:120}},
+  {id:'s20',  txt:'Clear Quest Stage 20',               goal:20,  stat:'stage', reward:{gems:300}},
+  {id:'hard1',txt:'Clear a Hard stage',                 goal:1,   stat:'hard',  reward:{gems:50}},
+  {id:'pvp1', txt:'Win a PvP match (last one standing)',goal:1,   stat:'pvpWins',reward:{gems:150}},
   {id:'k500', txt:'Defeat 500 enemies',                 goal:500, stat:'kills', reward:{coins:300}},
   {id:'k2000',txt:'Defeat 2,000 enemies',               goal:2000,stat:'kills', reward:{gems:100}},
   {id:'t3',   txt:'Reach a Tier 3 crew synergy (6/6)',  goal:1,   stat:'tier3', reward:{gems:60}},
@@ -24,12 +29,13 @@ const QUESTS = [
   {id:'runs5',txt:'Play 5 runs',                        goal:5,   stat:'runs',  reward:{coins:600}},
 ];
 const starterRoster = () => STARTER_CREWS.flatMap(cid => CREW[cid].ids.slice().sort((a, b) => RARITY[HEROES[a].rar].ord - RARITY[HEROES[b].rar].ord || b - a).slice(0, 3));
-function newSave(){ return {name:'', coins:3000, gems:300, shards:0, pity:0, owned:[], deck:{crews:[], picks:{}}, claimed:[], stats:{best:0, wins:0, kills:0, tier3:0, star3:0, runs:0}}; }
+function newSave(){ return {name:'', coins:3000, gems:300, shards:0, pity:0, owned:[], deck:{crews:[], picks:{}}, claimed:[], st:{n:{}, h:{}}, stats:{best:0, wins:0, kills:0, tier3:0, star3:0, runs:0, stage:0, hard:0, pvpWins:0, pvpBest:0}}; }
 function loadSave(){
   try{ const s = JSON.parse(localStorage.getItem(SAVE_KEY));
     if(s && s.stats){ const m = Object.assign(newSave(), s); m.stats = Object.assign(newSave().stats, s.stats);
       if(!Array.isArray(s.owned)) m.owned = starterRoster();
       if(!s.name) m.name = '';   // saves from before the gacha: crew unlocks become a starter roster
+      m.st = Object.assign({n:{}, h:{}}, s.st || {});
       delete m.unlocked; delete m.tokens; return m; } }catch(e){}
   return newSave();
 }
@@ -39,11 +45,11 @@ const ownedIn = cid => CREW[cid].ids.filter(owned);
 const activeCrews = () => CREWS.filter(c => c.ids.some(owned)).map(c => c.id);
 function persist(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(S)); }catch(e){} updateTop(); }
 function updateTop(){ $('#tb-name').textContent = S.name || 'Captain'; $('#tb-coins').textContent = fmt(S.coins); $('#tb-gems').textContent = fmt(S.gems); $('#tb-shards').textContent = fmt(S.shards);
-  $('#tb-sub').textContent = `${activeCrews().length}/12 crews active · best wave ${S.stats.best}`; }
+  $('#tb-sub').textContent = `${activeCrews().length}/12 crews active · Quest stage ${Math.min(STAGE_N, S.stats.stage + 1)}`; }
 
 /* ---------- navigation ---------- */
 let current = 'home', hist = [];
-const NAVMAP = {crew:'collection'};
+const NAVMAP = {crew:'collection', setup:'play'};
 const RENDER = {};
 function go(name, push = true){
   if(push && current !== name) hist.push(current);
@@ -91,16 +97,16 @@ RENDER.home = () => {
 
   $('#s-home').innerHTML = `
     <div class="scene"><div class="bg" role="img" aria-label="Crown of Seas key art"></div>
-      <div class="scenebtns" style="grid-template-columns:1fr"><button class="btn glow" data-tab="setup" style="font-size:24px">Play</button></div></div>
-    <div class="row between" style="margin-top:8px"><div><div class="otl" style="font-size:26px;line-height:1">CHESS TD</div><div class="muted" style="font-size:12px;font-weight:800">Tower defense on a chess board · 12 crews · 30 waves</div></div></div>
+      <div class="scenebtns" style="grid-template-columns:1fr"><button class="btn glow" data-tab="play" style="font-size:24px">Play</button></div></div>
+    <div class="row between" style="margin-top:8px"><div><div class="otl" style="font-size:26px;line-height:1">CHESS TD</div><div class="muted" style="font-size:12px;font-weight:800">Tower defense on a chess board · 12 crews · ${STAGE_N} Quest stages · PvP</div></div></div>
     <div class="tiles">
       <button class="mode" data-tab="collection"><b>Collection</b><small>${S.owned.length}/139 heroes · ${activeCrews().length}/12 crews</small></button>
       <button class="mode" data-tab="summon"><b>Grand Summon</b><small>1x 300 coins · 10x guarantees Epic</small></button>
-      <button class="mode" data-tab="quests"><b>Quests</b><small>${QUESTS.filter(q => questDone(q) && !S.claimed.includes(q.id)).length} rewards ready</small></button>
+      <button class="mode" data-tab="quests"><b>Missions</b><small>${QUESTS.filter(q => questDone(q) && !S.claimed.includes(q.id)).length} rewards ready</small></button>
       <button class="mode" id="howto"><b>How to Play</b><small>Mix crews · Synergy 2/4/6</small></button>
     </div>
-    <div class="card" style="margin-top:10px"><div class="row between"><b>Best wave</b><b class="otl" style="font-size:22px">${S.stats.best}/30</b></div>
-      <div class="muted" style="font-size:12px">${S.stats.wins} wins · ${S.stats.runs} runs · ${fmt(S.stats.kills)} enemies defeated</div></div>`;
+    <div class="card" style="margin-top:10px"><div class="row between"><b>Quest progress</b><b class="otl" style="font-size:22px">${S.stats.stage}/${STAGE_N}</b></div>
+      <div class="muted" style="font-size:12px">${Object.keys(S.st.h).length} Hard clears · PvP ${pvpReady() ? `unlocked${S.stats.pvpBest ? ` · best #${S.stats.pvpBest}` : ''}` : `locked (${Math.min(5, pvpCrews())}/5 crews with 7 heroes)`} · ${fmt(S.stats.kills)} enemies defeated</div></div>`;
   $('#av').src = cardArt(CREW.DW.captain);
   $('#howto').onclick = () => modal(`<div class="h1">How to Play</div><div class="muted" style="line-height:1.55;font-size:13px">
     <b style="color:var(--ink)">Heroes:</b> summon heroes (or buy them with Shards). A crew is active once you own 1 of its heroes.<br><b style="color:var(--ink)">Before a run:</b> pick 5 active crews and up to 7 owned towers from each. That's your 35-tower deck.<br>
@@ -108,7 +114,8 @@ RENDER.home = () => {
     <b style="color:var(--ink)">Mixing crews:</b> any tower can go on the board. Each crew's synergy only counts that crew's towers, so focusing one crew gives the biggest buff.<br>
     <b style="color:var(--ink)">Synergy 2/4/6:</b> different towers of your crew on the board. every crew has its own 2/4/6 bonuses (see each crew in Collection).<br>
     <b style="color:var(--ink)">Treasures:</b> after waves 5, 10, 15, 20 and 25 the game pauses: choose 1 of 3. Rarer tiers unlock later (Ancient Relics from wave 25).<br><b style="color:var(--ink)">Merge:</b> 3 of the same tower = 2★, three 2★ = 3★. Upgrade a placed tower with gold, sell it for a refund.<br>
-    <b style="color:var(--ink)">Win:</b> survive 30 waves. A boss comes every 10 waves. Lose when base HP hits 0.</div>
+    <b style="color:var(--ink)">Quest:</b> ${STAGE_N} stages of 30 waves, each tougher than the last. Normal pays coins, Hard pays gems, and the first clear pays double. A boss comes every 10 waves.<br>
+    <b style="color:var(--ink)">PvP:</b> unlocks once 5 crews each have 7 heroes. 8 captains, endless waves, last one standing wins.</div>
     <button class="btn wide" style="margin-top:10px" onclick="closeModal()">Got it</button>`);
 };
 
@@ -197,6 +204,46 @@ function playPulls(res, n, cur){
   fx.addEventListener('click', e => { if(!e.target.closest('button')) fx.classList.add('skip'); });
 }
 
+/* ---------- PLAY: Quest stages + PvP ---------- */
+let MODE = null;   // what the next run is: {kind:'stage', stage, hard} or {kind:'pvp'}
+const stageOpen = st => st === 1 || !!S.st.n[st - 1];
+const pvpCrews = () => CREWS.filter(c => ownedIn(c.id).length >= 7).length;
+const pvpReady = () => pvpCrews() >= 5;
+const nextStage = () => { for(let i = 1; i <= STAGE_N; i++) if(!S.st.n[i]) return i; return STAGE_N; };
+const modeName = m => m.kind === 'pvp' ? 'PvP' : `Stage ${m.stage}${m.hard ? ' Hard' : ''}`;
+const PVP_COINS = [1500, 900, 650, 450, 320, 220, 150, 100], PVP_GEMS = [150, 70, 40, 25, 15, 10, 5, 0];
+RENDER.play = () => {
+  const ready = pvpReady(), pc = Math.min(5, pvpCrews());
+  let html = `<div class="h1">Play</div>
+    <button class="pvpcard ${ready ? '' : 'locked'}" id="pvpgo"><div><b class="otl">PvP · Last One Standing</b>
+      <small>${ready ? '8 captains, endless waves. Outlast all 7 rivals to win.' : `Locked: get 5 crews to 7 heroes each (${pc}/5)`}</small>
+      ${ready ? '' : `<div class="bar" style="margin-top:5px"><i style="width:${pc/5*100}%"></i></div>`}</div><span class="pvptag">${ready ? 'FIGHT' : '🔒'}</span></button>
+    <div class="muted" style="font-weight:800;margin:10px 0 6px">Quest · 30 waves per stage. Normal pays coins, Hard pays gems. First clear pays double.</div>`;
+  for(let sea = 0; sea < STAGE_N/5; sea++){
+    html += `<div class="seahd">${SEAS[sea]}</div><div class="stgrid">`;
+    for(let st = sea*5 + 1; st <= sea*5 + 5; st++){ const open = stageOpen(st), n = S.st.n[st], h = S.st.h[st];
+      html += `<button class="stg ${open ? '' : 'locked'} ${n ? 'done' : ''} ${st === nextStage() && !n ? 'next' : ''}" data-stage="${st}"><b>${open ? st : '🔒'}</b><small>${MAP_NAMES[stageInfo(st).map]}</small><span class="marks"><i class="${n ? 'on' : ''}">N</i><i class="${h ? 'on h' : ''}">H</i></span></button>`; }
+    html += '</div>';
+  }
+  $('#s-play').innerHTML = html;
+  $('#pvpgo').onclick = () => { if(!ready) return toast(`Get 5 crews to 7 heroes each to unlock PvP (${pc}/5)`); MODE = {kind:'pvp'}; setupStep = 1; go('setup'); };
+  $('#s-play').querySelectorAll('[data-stage]').forEach(b => b.onclick = () => stageModal(+b.dataset.stage));
+};
+function stageModal(st){
+  if(!stageOpen(st)) return toast(`Clear Stage ${st - 1} on Normal first`);
+  const N0 = stageInfo(st, false), H0 = stageInfo(st, true), nf = !S.st.n[st], hf = !S.st.h[st], hOpen = !!S.st.n[st];
+  modal(`<div class="h1" style="margin-bottom:2px">Stage ${st}</div><div class="muted" style="font-weight:800">${N0.sea} · ${MAP_NAMES[N0.map]} map · 30 waves</div>
+    <div class="diffrow"><button class="diff" id="dn"><b>Normal</b><small>Enemy HP ×${N0.hpMul.toFixed(2)} · ${N0.base} lives</small>
+      <span class="cur"><i class="ic coin">C</i>+${fmt(N0.coins*(nf ? 2 : 1))}</span>${nf ? '<em>FIRST CLEAR ×2</em>' : `<em class="dim">Cleared ×${S.st.n[st]}</em>`}</button>
+    <button class="diff hard ${hOpen ? '' : 'locked'}" id="dh"><b>Hard</b><small>Enemy HP ×${H0.hpMul.toFixed(2)} · faster · ${H0.base} lives</small>
+      <span class="cur"><i class="ic gem"></i>+${H0.gems*(hf ? 2 : 1)}</span>${!hOpen ? '<em class="dim">Clear Normal first</em>' : hf ? '<em>FIRST CLEAR ×2</em>' : `<em class="dim">Cleared ×${S.st.h[st]}</em>`}</button></div>
+    <div class="note">Replays pay the normal amount. First clears pay double.</div>
+    <button class="btn ghost wide" style="margin-top:8px" id="dclose">Close</button>`);
+  $('#dclose').onclick = closeModal;
+  $('#dn').onclick = () => { MODE = {kind:'stage', stage:st, hard:false}; closeModal(); setupStep = 1; go('setup'); };
+  $('#dh').onclick = () => { if(!hOpen) return toast('Clear this stage on Normal to unlock Hard'); MODE = {kind:'stage', stage:st, hard:true}; closeModal(); setupStep = 1; go('setup'); };
+}
+
 /* ---------- PRE-MATCH SETUP ---------- */
 let setupStep = 1, setupTab = null;
 const defaultPicks = cid => ownedIn(cid).sort((a, b) => RARITY[HEROES[b].rar].ord - RARITY[HEROES[a].rar].ord || a - b).slice(0, 7);
@@ -208,6 +255,7 @@ function syncPicks(cid){ const own = ownedIn(cid); if(own.length <= 7) S.deck.pi
 const crewsNeed = () => Math.min(5, activeCrews().length);
 const setupReady = () => crewsNeed() > 0 && S.deck.crews.length === crewsNeed() && S.deck.crews.every(c => crewPicks(c).length === crewNeed(c) && crewNeed(c) > 0);
 RENDER.setup = () => {
+  if(!MODE || (MODE.kind === 'pvp' && !pvpReady())) MODE = {kind:'stage', stage:nextStage(), hard:false};
   const act = activeCrews();
   S.deck.crews = S.deck.crews.filter(c => act.includes(c));
   if(act.length <= 5) S.deck.crews = act.slice();
@@ -215,7 +263,7 @@ RENDER.setup = () => {
   const el = $('#s-setup'), crews = S.deck.crews;
   const steps = `<div class="steps"><span class="${setupStep === 1 ? 'on' : ''}">1 · Crews (${crews.length}/${cneed})</span><span class="${setupStep === 2 ? 'on' : ''}">2 · Set each crew (max 7)</span></div>`;
   if(setupStep === 1){
-    el.innerHTML = `<div class="h1">Pre-Match Setup</div>${steps}
+    el.innerHTML = `<div class="row" style="margin:4px 0 8px"><button class="btn ghost sm" data-tab="play" aria-label="Back">‹</button><div class="h1" style="margin:0">Setup · ${modeName(MODE)}</div></div>${steps}
       <div class="pickmsg" style="margin-bottom:8px">${act.length > 5 ? `Choose 5 of ${act.length} active crews for this run` : act.length === 0 ? 'You have no heroes yet — summon some first!' : act.length < 5 ? `${act.length}/5 crews active — summon heroes from more crews to unlock them` : 'All 5 active crews go to battle'}</div>
       <div class="crewgrid">${CREWS.map(c => { const n = ownedIn(c.id).length, i = crews.indexOf(c.id);
         return `<button class="crewtile ${n ? '' : 'inactive'} ${i >= 0 ? 'sel' : ''}" style="--cc:${c.col}" data-pick="${c.id}">${i >= 0 ? `<span class="num" style="background:${SLOT_COLS[i]}">${i+1}</span>` : ''}<img src="${crewIcon(c)}" alt=""><div><b>${c.name}</b><small>${n ? `${n} owned` : 'Not active · summon a hero'}</small></div></button>`; }).join('')}</div>
@@ -237,7 +285,7 @@ RENDER.setup = () => {
       <div class="pickmsg">${own.length > 7 ? `Choose 7 of ${own.length} to appear in battle` : own.length < 6 ? `Crew ${own.length}/6 — Unlock ${6 - own.length} more for full synergy` : `All ${own.length} unlocked heroes go to battle${own.length < 7 ? '' : ''}`}</div>
       <div class="muted" style="font-size:12px;margin:2px 0 8px">${own.length > 7 ? 'Tap to pick or drop.' : 'Every unlocked hero is in your crew. Unlock more to choose.'} Long-press (or right-click) for stats.</div>
       <div class="hgrid">${own.map(id => heroCard(id, picks.includes(id) ? '' : 'off').replace('</button>', picks.includes(id) ? '<i class="chk"></i></button>' : '</button>')).join('')}</div>
-      <button class="btn red wide" style="margin-top:12px;font-size:24px" id="go" ${setupReady() ? '' : 'disabled'}>${setupReady() ? `Start Run · ${total} towers` : `Pick ${need - picks.length > 0 ? need - picks.length + ' more for ' + c.name.split(' ')[0] : 'all crews'}`}</button>
+      <button class="btn red wide" style="margin-top:12px;font-size:24px" id="go" ${setupReady() ? '' : 'disabled'}>${setupReady() ? `Start ${modeName(MODE)} · ${total} towers` : `Pick ${need - picks.length > 0 ? need - picks.length + ' more for ' + c.name.split(' ')[0] : 'all crews'}`}</button>
       <div class="note">${total < 35 ? `Full deck is 35 (5 crews × 7). You have ${total}: summon more heroes to grow it.` : 'Full 35-tower deck.'} The shop deals random towers from your whole deck.</div>`;
     el.querySelector('[data-back]').onclick = e => { e.stopPropagation(); setupStep = 1; RENDER.setup(); };
     el.querySelectorAll('[data-tabc]').forEach(b => b.onclick = () => { setupTab = b.dataset.tabc; RENDER.setup(); });
@@ -275,7 +323,8 @@ let dirty = true; const uiDirty = () => { dirty = true; };
 function startRun(){
   const deck = S.deck.crews.flatMap(c => S.deck.picks[c]);
   if(!setupReady()) return toast('Pick 5 active crews with at least 1 tower each');
-  newRun(deck); $('#battle').classList.remove('hidden'); $('#sheet').classList.add('hidden');
+  if(!MODE) MODE = {kind:'stage', stage:nextStage(), hard:false};
+  newRun(deck, MODE); $('#battle').classList.remove('hidden'); $('#sheet').classList.add('hidden');
   dirty = true; bLast = performance.now(); cancelAnimationFrame(bRAF); bRAF = requestAnimationFrame(loop);
 }
 function fit(){ const f = $('#bfield'), w = f.clientWidth, h = f.clientHeight; if(!w || !h) return; const k = Math.min(w/CW, h/CH), W = Math.floor(CW*k), H = Math.floor(CH*k);
@@ -283,7 +332,11 @@ function fit(){ const f = $('#bfield'), w = f.clientWidth, h = f.clientHeight; i
 function renderUI(){
   // treasure pill
   const nextTr = (Math.floor(R.wave/5) + 1)*5, wl = nextTr - R.wave;
-  $('#lockbar').className = ''; $('#lockbar').innerHTML = nextTr < WAVES ? `🎁 Next Treasure in ${wl} Wave${wl === 1 ? '' : 's'}` : `🎁 ${R.treasures.length} Treasures collected`;
+  const tag = R.mode.kind === 'pvp' ? 'PvP' : `Stage ${R.mode.stage}${R.mode.hard ? ' · Hard' : ''}`;
+  $('#lockbar').className = ''; $('#lockbar').innerHTML = `<b style="color:#fff">${tag}</b> · ` + (nextTr < R.waves ? `🎁 Next Treasure in ${wl} Wave${wl === 1 ? '' : 's'}` : `🎁 ${R.treasures.length} Treasures collected`);
+  const rvEl = $('#rivals'); rvEl.classList.toggle('hidden', !R.rivals);
+  if(R.rivals){ const list = [{name:S.name || 'You', hp:R.base, me:true}, ...R.rivals].sort((a, b) => (a.out ? 1 : 0) - (b.out ? 1 : 0) || b.hp - a.hp);
+    rvEl.innerHTML = `<span class="rvlab">${pvpPlace()}/8 left</span>` + list.map(x => `<span class="rv ${x.me ? 'me' : ''} ${x.out ? 'out' : ''}">${x.name}<b ${x.me ? 'id="rv-me"' : ''}>${x.out ? 'OUT' : '♥' + x.hp}</b></span>`).join(''); }
   $('#trstack').innerHTML = R.treasures.map(x => { const T = TR[x.id]; return `<span class="trico" style="--tc:${TR_TIERS[T.tier].col}" title="${T.name}: ${x.note || T.desc}">${T.icon}</span>`; }).join('');
   // synergy: one row of small pills, tap to expand
   const syn = allSynergy(), runCrews = R.crews.map(synergy);
@@ -325,7 +378,8 @@ function renderUI(){
   } else sh.classList.add('hidden');
 }
 function hud(){
-  $('#b-wave').textContent = `Wave ${Math.max(1, R.wave)}/${WAVES}`; $('#b-left').textContent = R.waveOn ? `${R.enemies.length + R.spawnQ.length} enemies left` : R.wave ? 'Wave clear' : 'Get ready'; $('#b-gems').textContent = S.gems;
+  $('#b-wave').textContent = R.rivals ? `Wave ${Math.max(1, R.wave)}` : `Wave ${Math.max(1, R.wave)}/${R.waves}`;
+  const me = $('#rv-me'); if(me && me.textContent !== '♥' + R.base) me.textContent = '♥' + R.base; $('#b-left').textContent = R.waveOn ? `${R.enemies.length + R.spawnQ.length} enemies left` : R.wave ? 'Wave clear' : 'Get ready'; $('#b-gems').textContent = S.gems;
   $('#b-hp').style.width = (R.base/R.baseMax*100) + '%'; $('#b-hpn').textContent = R.base;
   const cp = $('#b-cap'), ct = `${R.towers.length}/${towerCap()} towers`; if(cp.textContent !== ct) cp.textContent = ct;
   const gEl = $('#b-gold'); if(gEl.textContent !== String(R.gold)){ gEl.textContent = R.gold; dirty = true; }
@@ -380,9 +434,9 @@ $('#b-next').onclick = () => { if(R && !R.waveOn){ R.nextIn = 0; startWave(); } 
 $('#b-speed').onclick = () => { if(!R) return; R.speed = R.speed === 1 ? 2 : 1; $('#b-speed').textContent = 'x' + R.speed; $('#b-speed').classList.toggle('on', R.speed === 2); };
 $('#b-pause').onclick = () => {
   if(!R || R.over || R.choosing) return; R.paused = true;
-  modal(`<div class="h1">Paused</div><div class="muted">Wave ${R.wave}/30 · base ${R.base}/${R.baseMax}</div>
+  modal(`<div class="h1">Paused</div><div class="muted">${modeName(R.mode)} · wave ${R.wave}${R.rivals ? '' : '/' + R.waves} · base ${R.base}/${R.baseMax}</div>
     <div class="row" style="justify-content:center;margin-top:12px"><button class="btn red" id="pq">Quit run</button><button class="btn" id="pr">Resume</button></div>
-    <div class="note">Quitting ends the run and pays rewards for the waves you cleared.</div>`);
+    <div class="note">${R.rivals ? 'Quitting ends the match at your current place.' : 'Quitting ends the run and pays a few coins for the waves you cleared.'}</div>`);
   $('#pr').onclick = () => { closeModal(); R.paused = false; bLast = performance.now(); };
   $('#pq').onclick = () => { closeModal(); R.paused = false; endRun(false, true); };
 };
@@ -415,22 +469,34 @@ function relicFlash(){
 /* ---------- results ---------- */
 function endRun(win, quit){
   if(R.over) return; R.over = true;
-  const cleared = win ? WAVES : Math.max(0, R.wave - (R.waveOn ? 1 : 0));
-  const coins = 20*cleared + (win ? 300 : 0), gems = win ? 15 : Math.floor(cleared/10)*3;
+  const m = R.mode, pvp = m.kind === 'pvp', cleared = win && !pvp ? R.waves : Math.max(0, R.wave - (R.waveOn ? 1 : 0));
+  let coins = 0, gems = 0, first = false, place = 0;
+  if(pvp){ place = win ? 1 : pvpPlace(); coins = PVP_COINS[place - 1]; gems = PVP_GEMS[place - 1];
+    if(win) S.stats.pvpWins++; S.stats.pvpBest = S.stats.pvpBest ? Math.min(S.stats.pvpBest, place) : place; }
+  else if(win){ const si = stageInfo(m.stage, m.hard), book = m.hard ? S.st.h : S.st.n; first = !book[m.stage]; book[m.stage] = (book[m.stage] || 0) + 1;
+    if(m.hard){ gems = si.gems*(first ? 2 : 1); S.stats.hard = Object.keys(S.st.h).length; } else coins = si.coins*(first ? 2 : 1);
+    S.stats.wins++; S.stats.stage = Math.max(S.stats.stage, ...Object.keys(S.st.n).map(Number)); }
+  else coins = 5*cleared;
   S.coins += coins; S.gems += gems;
-  S.stats.runs++; S.stats.kills += R.kills; S.stats.best = Math.max(S.stats.best, cleared); if(win) S.stats.wins++;
+  S.stats.runs++; S.stats.kills += R.kills; S.stats.best = Math.max(S.stats.best, Math.min(30, cleared));
   if(R.maxTier >= 3) S.stats.tier3 = 1; if(R.merged3) S.stats.star3 = 1;
   persist();
+  const title = pvp ? (win ? 'Last One Standing!' : `#${place} of 8`) : win ? (m.hard ? 'Hard Stage Clear!' : 'Stage Clear!') : quit ? 'Run ended' : 'Base fallen';
+  const good = pvp ? place <= 3 : win;
+  const sub = pvp ? `Survived ${cleared} waves · ${8 - place} rivals outlasted · ${fmt(R.kills)} enemies` : `${modeName(m)} · waves cleared ${cleared}/30 · ${fmt(R.kills)} enemies`;
   const top = Object.entries(R.dealt).sort((a, b) => b[1] - a[1]).slice(0, 6), max = top.length ? top[0][1] : 1;
-  modal(`<div class="h1 otl" style="font-size:38px;color:${win ? 'var(--gold)' : 'var(--crimson)'}">${win ? 'Victory!' : quit ? 'Run ended' : 'Base fallen'}</div>
-    <div class="muted" style="font-weight:800">Waves cleared ${cleared}/30 · ${fmt(R.kills)} enemies · best synergy tier ${R.maxTier}</div>
-    <div class="row" style="justify-content:center;gap:10px;margin:10px 0"><span class="cur"><i class="ic coin">C</i>+${fmt(coins)}</span>${gems ? `<span class="cur"><i class="ic gem"></i>+${gems}</span>` : ''}</div>
+  const canNext = !pvp && win && !m.hard && m.stage < STAGE_N;
+  modal(`<div class="h1 otl" style="font-size:38px;color:${good ? 'var(--gold)' : 'var(--crimson)'}">${title}</div>
+    <div class="muted" style="font-weight:800">${sub}</div>
+    ${first ? '<div class="firstclr">FIRST CLEAR · REWARD ×2</div>' : ''}
+    <div class="row" style="justify-content:center;gap:10px;margin:10px 0">${coins ? `<span class="cur"><i class="ic coin">C</i>+${fmt(coins)}</span>` : ''}${gems ? `<span class="cur"><i class="ic gem"></i>+${gems}</span>` : ''}${!coins && !gems ? '<span class="muted">No reward</span>' : ''}</div>
     ${R.treasures.length ? `<div class="muted" style="font-size:12px;margin-bottom:8px">Treasures: ${R.treasures.map(x => TR[x.id].icon + ' ' + TR[x.id].name).join(' · ')}</div>` : ''}
     <div class="card" style="padding:10px"><b>Damage dealt</b>${top.length ? top.map(([id, v]) => `<div class="dmgrow"><img src="${cardArt(+id)}" alt=""><div><div>${HEROES[id].name}</div><div class="bar"><i style="width:${v/max*100}%"></i></div></div><span>${fmt(v)}</span></div>`).join('') : '<div class="muted">No damage dealt</div>'}</div>
-    <div class="row" style="justify-content:center;margin-top:12px"><button class="btn ghost" id="rhome">Home</button><button class="btn red" id="ragain">Play again</button></div>`);
+    <div class="row" style="justify-content:center;margin-top:12px;flex-wrap:wrap"><button class="btn ghost" id="rhome">Home</button><button class="btn ${canNext ? 'ghost' : 'red'}" id="ragain">${win && !pvp ? 'Replay' : 'Try again'}</button>${canNext ? `<button class="btn red" id="rnext">Stage ${m.stage + 1}</button>` : ''}</div>`);
   const exit = () => { closeModal(); $('#battle').classList.add('hidden'); cancelAnimationFrame(bRAF); R = null; };
-  $('#rhome').onclick = () => { exit(); go('home', false); };
+  $('#rhome').onclick = () => { exit(); go('play', false); };
   $('#ragain').onclick = () => { exit(); startRun(); };
+  if(canNext) $('#rnext').onclick = () => { exit(); MODE = {kind:'stage', stage:m.stage + 1, hard:false}; startRun(); };
 }
 
 /* ---------- captain name, settings, restart ---------- */

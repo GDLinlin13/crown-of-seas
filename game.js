@@ -50,10 +50,38 @@ function buildPath(pts0){
 }
 function posAt(d){ for(const s of R.path.segs) if(d <= s.s + s.l){ const k = (d - s.s)/s.l; return {x:s.a.x + (s.b.x-s.a.x)*k, y:s.a.y + (s.b.y-s.a.y)*k}; } return {x:R.path.end.x, y:R.path.end.y}; }
 
+/* ---------- modes: Quest stages (30 waves each, harder every stage) and PvP (last one standing) ---------- */
+const STAGE_N = 20, SEAS = ['Coral Shallows', 'Storm Reach', 'Ironclad Strait', 'Crown Waters'];
+const MAP_NAMES = ['Double U', 'Crown Arch', 'Comb Reef', 'Hairpin', 'Stairway'];
+function stageInfo(st, hard){
+  const hpMul = (0.2 + 0.065*(st - 1))*(hard ? 1.5 : 1);   // stage 1 = 0.20, stage 20 = 1.44 (classic was 1.0)
+  return {waves:WAVES, hpMul, spdMul:hard ? 1.08 : 1, base:hard ? 15 : BASE_HP, map:(st - 1) % PATHS.length,
+    sea:SEAS[Math.floor((st - 1)/5)], coins:150 + 30*st, gems:15 + 3*st};
+}
+const RIVAL_NAMES = ['Redfin', 'Saltjaw', 'Marrow', 'Gale Vask', 'Okra Bell', 'Tidecutter', 'Brindle', 'Ash Corsa', 'Nettle', 'Quill', 'Harrow', 'Juniper Vane', 'Corvid', 'Sable Pike'];
+function makeRivals(){
+  const names = RIVAL_NAMES.slice().sort(() => Math.random() - 0.5).slice(0, 7);
+  // each rival starts leaking somewhere between wave 5 and wave 26, so they drop out one by one (last one around wave 33)
+  return names.map((name, i) => ({name, hp:BASE_HP, soft:5 + i*3 + Math.random()*3, out:0}));
+}
+function pvpTick(){
+  const w = R.wave;
+  for(const rv of R.rivals){ if(rv.out) continue;
+    if(w > rv.soft){ const d = Math.round(Math.random()*(1 + (w - rv.soft)*0.7) + (w % 10 === 0 ? 3 : 0)); rv.hp = Math.max(0, rv.hp - d); }
+    if(rv.hp <= 0){ rv.out = w; const left = R.rivals.filter(x => !x.out).length + 1; banner(`${rv.name.toUpperCase()} ELIMINATED · ${left} LEFT`, '#ff9f43'); } }
+  uiDirty();
+  if(R.rivals.every(x => x.out)){ endRun(true); return true; }
+  return false;
+}
+const pvpPlace = () => R.rivals.filter(x => !x.out).length + 1;
+
 /* ---------- run setup ---------- */
-function newRun(deck){
-  const path = buildPath(PATHS[Math.floor(Math.random()*PATHS.length)]);
-  R = {deck:deck.slice(), crews:[...new Set(deck.map(id => HEROES[id].crew))], lock:null, path, gold:START_GOLD, base:BASE_HP, baseMax:BASE_HP,
+function newRun(deck, mode = {kind:'stage', stage:1, hard:false}){
+  const pvp = mode.kind === 'pvp', si = pvp ? null : stageInfo(mode.stage, mode.hard);
+  const path = buildPath(PATHS[pvp ? Math.floor(Math.random()*PATHS.length) : si.map]);
+  const base = pvp ? BASE_HP : si.base;
+  R = {mode, waves:pvp ? Infinity : si.waves, hpMul:pvp ? 0.75 : si.hpMul, spdMul:pvp ? 1 : si.spdMul, rivals:pvp ? makeRivals() : null,
+    deck:deck.slice(), crews:[...new Set(deck.map(id => HEROES[id].crew))], lock:null, path, gold:START_GOLD, base, baseMax:base,
     wave:0, waveOn:false, nextIn:0, spawnQ:[], spawnT:0, towers:[], bench:Array(BENCH).fill(null), shop:[], enemies:[], projs:[], fx:[], texts:[],
     speed:1, paused:false, autoPlace:false, sel:null, benchSel:null, kills:0, leaks:0, shieldLeft:0, dealt:{}, time:0, over:false, best3:false, merged3:false, maxTier:0,
     tr:newTreasureState(), treasures:[], trRerollFree:1, choosing:false, freeRerolls:0, revived:false, cannonT:10, M:null};
@@ -170,7 +198,7 @@ function towerStats(t){
 let HP_GROW = 1.16;   // enemy toughness per wave
 const waveHp = w => 40*Math.pow(HP_GROW, w - 1);
 function startWave(){
-  if(R.waveOn || R.over || R.wave >= WAVES) return;
+  if(R.waveOn || R.over || R.wave >= R.waves) return;
   R.wave++; R.waveOn = true; R.towers.forEach(t => t.opened = false); computeMods();
   if(gmod('waveGold')) R.gold += gmod('waveGold');
   R.freeRerolls = gmod('freeReroll');
@@ -185,8 +213,8 @@ function startWave(){
 }
 function spawn(it){
   const w = R.wave, boss = it.type === 'boss', E = ENEMY[boss ? 'brute' : it.type];
-  const hp = waveHp(w)*(boss ? 22 + w*0.6 : E.hp);
-  R.enemies.push({type:it.type, boss, hp, maxHp:hp, spd:(boss ? 0.5 : E.spd)*(1 + 0.012*w), leak: boss ? 6 : E.leak, armor:E.armor || 0,
+  const hp = waveHp(w)*(boss ? 22 + w*0.6 : E.hp)*R.hpMul;
+  R.enemies.push({type:it.type, boss, hp, maxHp:hp, spd:(boss ? 0.5 : E.spd)*(1 + 0.012*Math.min(w, 40))*R.spdMul, leak: boss ? 6 : E.leak, armor:E.armor || 0,
     dist:0, x:R.path.start.x, y:R.path.start.y, slowT:0, slowF:0, stun:0, burn:0, burnDps:0, poison:0, poisonStacks:0, hit:0, seed:Math.random()*9, alive:true});
 }
 function waveCleared(){
@@ -196,9 +224,10 @@ function waveCleared(){
   if(gmod('healWave')) R.base = Math.min(R.baseMax, R.base + gmod('healWave'));
   treasureWaveEnd();
   banner(`WAVE ${R.wave} CLEAR  +${bonus} GOLD${interest ? ` (${interest} interest)` : ''}`, '#7be36b');
-  if(R.wave >= WAVES) return endRun(true);
+  if(R.wave >= R.waves) return endRun(true);
+  if(R.rivals && pvpTick()) return;
   rollShop(true); R.nextIn = 6;
-  if(R.wave % 5 === 0 && R.wave < WAVES) offerTreasure();   // every 5 waves: pause and choose 1 of 3
+  if(R.wave % 5 === 0 && R.wave < R.waves) offerTreasure();   // every 5 waves: pause and choose 1 of 3
   uiDirty();
 }
 
