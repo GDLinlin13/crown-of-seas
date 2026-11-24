@@ -236,20 +236,66 @@ function token(id, ring){
   return TOKEN[key] = c;
 }
 const ENEMY_COL = {walker:'#3a3f52', runner:'#2e5a6a', brute:'#5a3a3a', armored:'#55606f', boss:'#2a1530'};
+// Enemies: chibi navy soldiers (original designs)
+//   walker = sailor rifleman · runner = cadet with cutlass · brute = heavy gunner · armored = shield trooper · boss = commodore
 function drawEnemy(g, e, t){
-  const s = e.boss ? 1.6 : e.type === 'brute' ? 1.2 : e.type === 'runner' ? 0.85 : 1, bob = Math.sin(t*10 + e.seed)*2;
-  g.save(); g.translate(e.x, e.y + bob);
-  g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.ellipse(0, 16*s, 16*s, 5*s, 0, 0, 7); g.fill();
-  const col = e.stun > 0 ? '#ffe48a' : e.slowT > 0 ? '#7fe7ff' : ENEMY_COL[e.boss ? 'boss' : e.type];
-  // a dark "enemy" chess piece
-  g.save(); g.translate(-18*s, -24*s); g.scale(0.36*s, 0.4*s);
-  const p = PIECE_P2D[e.boss ? 'king' : e.type === 'brute' ? 'rook' : e.type === 'armored' ? 'bishop' : 'pawn'];
-  g.fillStyle = col; g.fill(p); g.lineWidth = 6; g.strokeStyle = e.boss ? '#ff4d6d' : '#120c18'; g.stroke(p);
+  const s = e.boss ? 1.55 : e.type === 'brute' ? 1.25 : e.type === 'runner' ? 0.9 : 1;
+  const step = Math.sin(t*10 + e.seed), bob = Math.abs(step)*2;
+  g.save(); g.translate(e.x, e.y + 6);
+  g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.ellipse(0, 12*s, 14*s, 4.5*s, 0, 0, 7); g.fill();
+  g.translate(0, -bob); g.scale(s, s);
+  const O = '#14181f', SKIN = '#f1c9a0', NAVY = '#1f3a6b', WHITE = '#eef2f6', GOLD = '#e0b63c';
+  const tint = e.stun > 0 ? '#ffe48a' : e.slowT > 0 ? '#9fe9ff' : null;
+  const blob = (x, y, rx, ry, fill) => { g.fillStyle = fill; g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, 7); g.fill(); g.lineWidth = 1.3; g.strokeStyle = O; g.stroke(); };
+  const rect = (x, y, w, h, r, fill) => { g.fillStyle = fill; g.beginPath(); g.roundRect(x, y, w, h, r); g.fill(); g.lineWidth = 1.3; g.strokeStyle = O; g.stroke(); };
+  const T = e.boss ? 'boss' : e.type;
+  // legs (walk cycle) + boots
+  const lg = step*2.2;
+  rect(-5.5, 2 + lg*0.3, 4.5, 8, 2, NAVY); rect(1, 2 - lg*0.3, 4.5, 8, 2, NAVY);
+  blob(-3.3, 10.5 + lg*0.3, 3.4, 2.2, '#1a1a1a'); blob(3.3, 10.5 - lg*0.3, 3.4, 2.2, '#1a1a1a');
+  // body
+  if(T === 'boss'){
+    g.fillStyle = WHITE; g.beginPath(); g.moveTo(-12, -9); g.lineTo(12, -9); g.lineTo(15, 9); g.lineTo(-15, 9); g.closePath(); g.fill(); g.lineWidth = 1.3; g.strokeStyle = O; g.stroke(); // long coat
+    rect(-7, -9, 14, 15, 3, NAVY); g.fillStyle = GOLD; for(let k=0;k<3;k++){ g.beginPath(); g.arc(0, -6 + k*4, 1, 0, 7); g.fill(); }
+    for(const sd of [-1, 1]){ g.fillStyle = GOLD; g.beginPath(); g.ellipse(sd*10, -9, 4.5, 2.2, 0, 0, 7); g.fill(); g.strokeStyle = O; g.stroke();             // epaulettes
+      g.strokeStyle = GOLD; g.lineWidth = 1; for(let k=-3;k<=3;k+=1.5){ g.beginPath(); g.moveTo(sd*10 + k, -7.5); g.lineTo(sd*10 + k, -5); g.stroke(); } }
+  } else if(T === 'brute'){
+    rect(-10, -9, 20, 14, 5, NAVY); g.fillStyle = '#6b4a2a'; g.fillRect(-10, 1, 20, 2.5);
+  } else {
+    rect(-7.5, -9, 15, 13, 4, WHITE);
+    g.fillStyle = NAVY; g.beginPath(); g.moveTo(-7, -9); g.lineTo(7, -9); g.lineTo(0, -3); g.closePath(); g.fill();                  // sailor collar
+    g.fillStyle = '#c8333f'; g.beginPath(); g.moveTo(-2, -5); g.lineTo(2, -5); g.lineTo(0, -1); g.closePath(); g.fill();             // neckerchief
+    g.fillStyle = NAVY; g.fillRect(-7.5, 1.5, 15, 2.2);
+  }
+  if(tint){ g.globalAlpha = 0.35; g.fillStyle = tint; g.beginPath(); g.ellipse(0, -2, 12, 11, 0, 0, 7); g.fill(); g.globalAlpha = 1; }
+  // weapons / gear
+  if(T === 'walker'){ g.strokeStyle = '#5a3a1e'; g.lineWidth = 2.6; g.lineCap = 'round'; g.beginPath(); g.moveTo(-6, 4); g.lineTo(9, -16); g.stroke();
+    g.strokeStyle = '#9aa3ad'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(6, -12); g.lineTo(11, -19); g.stroke(); }                  // musket
+  else if(T === 'runner'){ g.strokeStyle = '#d6dde5'; g.lineWidth = 2; g.lineCap = 'round'; g.beginPath(); g.moveTo(7, -2); g.quadraticCurveTo(14, -8, 13, -16); g.stroke(); blob(7, -2, 1.8, 1.8, GOLD); } // cutlass
+  else if(T === 'brute'){ g.save(); g.translate(12, -2); g.rotate(-0.5); rect(-2, -14, 4, 16, 1.5, '#5a3a1e'); rect(-6, -19, 12, 7, 2, '#55606b'); g.restore(); }   // war hammer
+  else if(T === 'armored'){ blob(-9, -1, 7.5, 9, '#7c8794'); g.strokeStyle = GOLD; g.lineWidth = 1.4;                               // round shield with an anchor
+    g.beginPath(); g.moveTo(-9, -6); g.lineTo(-9, 4); g.moveTo(-12, -4); g.lineTo(-6, -4); g.stroke(); g.beginPath(); g.arc(-9, 1.5, 3.2, 0.2, Math.PI - 0.2); g.stroke(); }
+  else if(T === 'boss'){ g.strokeStyle = '#e4e9ef'; g.lineWidth = 2.4; g.lineCap = 'round'; g.beginPath(); g.moveTo(9, 2); g.lineTo(17, -18); g.stroke(); blob(9, 2, 2.4, 2.4, GOLD); }
+  // head
+  blob(0, -16, 7.5, 7, SKIN);
+  g.fillStyle = O; g.beginPath(); g.ellipse(-2.6, -15.5, 1.1, 1.5, 0, 0, 7); g.ellipse(2.6, -15.5, 1.1, 1.5, 0, 0, 7); g.fill();          // eyes
+  g.strokeStyle = O; g.lineWidth = 1; g.beginPath(); g.moveTo(-4.5, -18.5); g.lineTo(-1, -17.6); g.moveTo(4.5, -18.5); g.lineTo(1, -17.6); g.stroke(); // stern brows
+  if(T === 'brute'){ g.fillStyle = '#5a3a20'; g.beginPath(); g.ellipse(0, -11, 6.5, 3.5, 0, 0, Math.PI); g.fill(); }                   // beard
+  else { g.beginPath(); g.moveTo(-2, -12); g.lineTo(2, -12); g.stroke(); }
+  // headgear
+  if(T === 'armored'){ blob(0, -21, 8.5, 4.5, '#8f99a5'); g.fillStyle = '#6f7a86'; g.fillRect(-8.5, -21, 17, 2); }                    // steel helmet
+  else if(T === 'boss'){ rect(-8, -26, 16, 6, 2.5, WHITE); rect(-9.5, -21.5, 19, 2.5, 1.2, NAVY);                                       // officer cap
+    g.fillStyle = GOLD; g.beginPath(); g.arc(0, -23, 1.8, 0, 7); g.fill(); g.fillStyle = '#111'; g.beginPath(); g.ellipse(0, -19.2, 8, 1.8, 0, 0, Math.PI); g.fill(); }
+  else if(T === 'brute'){ blob(0, -21, 7.5, 3.5, NAVY); }                                                                                 // knit cap
+  else { blob(0, -21.5, 7.5, 3.2, WHITE); g.fillStyle = NAVY; g.fillRect(-7, -20.5, 14, 2); }                                           // sailor cap
   g.restore();
-  if(e.hit > 0){ g.globalCompositeOperation = 'lighter'; g.fillStyle = 'rgba(255,255,255,.5)'; g.beginPath(); g.arc(0, -4*s, 14*s, 0, 7); g.fill(); g.globalCompositeOperation = 'source-over'; }
-  if(e.burn > 0){ g.fillStyle = '#ff7a2a'; g.beginPath(); g.arc(10*s, -18*s, 3, 0, 7); g.fill(); }
-  if(e.poison > 0){ g.fillStyle = '#7be36b'; g.beginPath(); g.arc(-10*s, -18*s, 3, 0, 7); g.fill(); }
-  const w = e.boss ? 56 : 30, f = Math.max(0, e.hp/e.maxHp);
-  g.fillStyle = 'rgba(0,0,0,.75)'; g.fillRect(-w/2 - 1, -32*s - 1, w + 2, 6); g.fillStyle = e.boss ? '#ff4d6d' : f > 0.5 ? '#7be36b' : '#ffb020'; g.fillRect(-w/2, -32*s, w*f, 4);
-  g.restore();
+  // status marks, hit flash and HP bar
+  const k = s;
+  if(e.hit > 0){ g.save(); g.globalCompositeOperation = 'lighter'; g.fillStyle = 'rgba(255,255,255,.45)'; g.beginPath(); g.arc(e.x, e.y - 6*k, 13*k, 0, 7); g.fill(); g.restore(); }
+  if(e.burn > 0){ g.fillStyle = '#ff7a2a'; g.beginPath(); g.arc(e.x + 10*k, e.y - 22*k, 3, 0, 7); g.fill(); }
+  if(e.poison > 0){ g.fillStyle = '#7be36b'; g.beginPath(); g.arc(e.x - 10*k, e.y - 22*k, 3, 0, 7); g.fill(); }
+  if(e.markT > 0){ g.strokeStyle = '#ff6a8a'; g.lineWidth = 2; g.beginPath(); g.arc(e.x, e.y + 4, 15*k, 0, 7); g.stroke(); }
+  const w = e.boss ? 54 : 30, f = Math.max(0, e.hp/e.maxHp), y = e.y - (e.boss ? 52 : 36*k);
+  g.fillStyle = 'rgba(0,0,0,.75)'; g.beginPath(); g.roundRect(e.x - w/2 - 1, y - 1, w + 2, 6, 3); g.fill();
+  g.fillStyle = e.boss ? '#ff4d6d' : f > 0.5 ? '#5fd35a' : '#ffb020'; g.beginPath(); g.roundRect(e.x - w/2, y, w*f, 4, 2); g.fill();
 }
