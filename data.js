@@ -133,11 +133,13 @@ const CAPTAIN = {
   BM:{mul:4,   extra:'none',  txt:'(the strongest single slash in the game)'},
   VT:{mul:2.5, extra:'slow',  txt:'and binds them all 60% slower for 5s'},
 };
+// rarer = lower summon rate, higher price, stronger: mul = damage, spd = attack speed, rng = extra tiles of range
 const RARITY = {
-  C:{name:'Common',    col:'#a3abb8', cost:1, mul:1.00, ord:0},
-  R:{name:'Rare',      col:'#3d9bff', cost:2, mul:1.35, ord:1},
-  E:{name:'Epic',      col:'#b65cff', cost:3, mul:1.80, ord:2},
-  L:{name:'Legendary', col:'#FFD700', cost:4, mul:2.40, ord:3},
+  C:{name:'Common',    col:'#a3abb8', cost:1, mul:1.0, spd:0,   rng:0,   ord:0, rate:.60, price:50,   dup:10},
+  R:{name:'Rare',      col:'#3d9bff', cost:2, mul:1.5, spd:.03, rng:0,   ord:1, rate:.26, price:100,  dup:20},
+  E:{name:'Epic',      col:'#b65cff', cost:3, mul:2.2, spd:.06, rng:.1,  ord:2, rate:.10, price:250,  dup:50},
+  L:{name:'Legendary', col:'#FFD700', cost:4, mul:3.2, spd:.10, rng:.2,  ord:3, rate:.03, price:600,  dup:120},
+  M:{name:'Mythic',    col:'#ff4d6d', cost:5, mul:4.2, spd:.14, rng:.3,  ord:4, rate:.01, price:1200, dup:250},   // the 12 captains
 };
 // roles decide the chess piece, base stats and the active skill type
 const ROLES = {
@@ -167,10 +169,10 @@ for(const c of CREWS){
   c.list.forEach((name, i) => {
     const h = hash(name + c.id);
     const k = KITS[name]; if(!k) throw new Error('no kit for ' + name);
-    const [role, kit, rar, skill] = k.split('/');
+    const [role, kit, rar0, skill] = k.split('/'), rar = i === 0 ? 'M' : rar0;
     const R = ROLES[role], M = RARITY[rar].mul;
     const hero = {id:HEROES.length, name, crew:c.id, captain:i === 0, rar, role, kit,
-      cost:RARITY[rar].cost, dmg:Math.round(R.dmg*M), range:R.range, aspd:+(R.aspd*(1 + ((h >>> 9) % 5 - 2)*0.04)).toFixed(2),
+      cost:RARITY[rar].cost, dmg:Math.round(R.dmg*M), range:+(R.range + RARITY[rar].rng).toFixed(1), aspd:+(R.aspd*(1 + RARITY[rar].spd)*(1 + ((h >>> 9) % 5 - 2)*0.02)).toFixed(2),
       skill, passive:PASSIVES[(h >>> 13) % PASSIVES.length]};
     HEROES.push(hero);
   });

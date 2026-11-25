@@ -15,7 +15,7 @@ const PATHS = [   // 5 short winding roads, entrance on the left, castle on the 
   [[-1,0],[1,0],[1,2],[3,2],[3,4],[6,4],[6,1],[8,1]],          // Stairway
 ];
 const WAVES = 30, BASE_HP = 20, START_GOLD = 8, REROLL = 2, BENCH = 6;
-const STAR_MUL = [0, 1, 1.8, 3.2], SHOP_W = {C:1, R:0.75, E:0.5, L:0.3};
+const STAR_MUL = [0, 1, 1.8, 3.2], SHOP_W = {C:1, R:0.75, E:0.5, L:0.3, M:0.2};
 const ENEMY = {
   walker: {hp:1.0, spd:0.95, leak:1},
   runner: {hp:0.6, spd:1.7,  leak:1},
@@ -51,10 +51,10 @@ function buildPath(pts0){
 function posAt(d){ for(const s of R.path.segs) if(d <= s.s + s.l){ const k = (d - s.s)/s.l; return {x:s.a.x + (s.b.x-s.a.x)*k, y:s.a.y + (s.b.y-s.a.y)*k}; } return {x:R.path.end.x, y:R.path.end.y}; }
 
 /* ---------- modes: Quest stages (30 waves each, harder every stage) and PvP (last one standing) ---------- */
-const STAGE_N = 20, SEAS = ['Coral Shallows', 'Storm Reach', 'Ironclad Strait', 'Crown Waters'];
+const STAGE_N = 30, SEAS = ['Coral Shallows', 'Storm Reach', 'Ironclad Strait', 'Crown Waters', 'Tempest Maw', 'Sunken Throne'];
 const MAP_NAMES = ['Double U', 'Crown Arch', 'Comb Reef', 'Hairpin', 'Stairway'];
 function stageInfo(st, hard){
-  const hpMul = (0.2 + 0.065*(st - 1))*(hard ? 1.5 : 1);   // stage 1 = 0.20, stage 20 = 1.44 (classic was 1.0)
+  const hpMul = (0.2 + 0.065*(st - 1) + 0.0006*(st - 1)**2)*(hard ? 1.5 : 1);   // stage 1 = 0.20, stage 10 = 0.83, stage 20 = 1.65, stage 30 = 2.59
   return {waves:WAVES, hpMul, spdMul:hard ? 1.08 : 1, base:hard ? 15 : BASE_HP, map:(st - 1) % PATHS.length,
     sea:SEAS[Math.floor((st - 1)/5)], coins:150 + 30*st, gems:15 + 3*st};
 }
@@ -80,7 +80,7 @@ function newRun(deck, mode = {kind:'stage', stage:1, hard:false}){
   const pvp = mode.kind === 'pvp', si = pvp ? null : stageInfo(mode.stage, mode.hard);
   const path = buildPath(PATHS[pvp ? Math.floor(Math.random()*PATHS.length) : si.map]);
   const base = pvp ? BASE_HP : si.base;
-  R = {mode, waves:pvp ? Infinity : si.waves, hpMul:pvp ? 0.75 : si.hpMul, spdMul:pvp ? 1 : si.spdMul, rivals:pvp ? makeRivals() : null,
+  R = {mode, waves:pvp ? Infinity : si.waves, hpMul:pvp ? 1 : si.hpMul, spdMul:pvp ? 1 : si.spdMul, rivals:pvp ? makeRivals() : null,
     deck:deck.slice(), crews:[...new Set(deck.map(id => HEROES[id].crew))], lock:null, path, gold:START_GOLD, base, baseMax:base,
     wave:0, waveOn:false, nextIn:0, spawnQ:[], spawnT:0, towers:[], bench:Array(BENCH).fill(null), shop:[], enemies:[], projs:[], fx:[], texts:[],
     speed:1, paused:false, autoPlace:false, sel:null, benchSel:null, kills:0, leaks:0, shieldLeft:0, dealt:{}, time:0, over:false, best3:false, merged3:0, maxTier:0, maxT3:0,

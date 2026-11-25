@@ -18,9 +18,9 @@ const STARTER_CREWS = ['DW','CS','TV','RB','IG'];   // you start owning 3 heroes
 const CHAIN = (chain, stat, steps) => steps.map(([id, goal, txt, reward], i) => ({id, chain, step:i + 1, steps:steps.length, stat, goal, txt, reward}));
 const QUESTS = [
   ...CHAIN('stage', 'stage', [['win', 1, 'Clear Quest Stage 1', {gems:60}], ['s5', 5, 'Clear Quest Stage 5', {gems:60}], ['s10', 10, 'Clear Quest Stage 10', {gems:120}],
-    ['s15', 15, 'Clear Quest Stage 15', {gems:180}], ['s20', 20, 'Clear Quest Stage 20', {gems:300}]]),
+    ['s15', 15, 'Clear Quest Stage 15', {gems:180}], ['s20', 20, 'Clear Quest Stage 20', {gems:300}], ['s25', 25, 'Clear Quest Stage 25', {gems:400}], ['s30', 30, 'Clear Quest Stage 30', {gems:600}]]),
   ...CHAIN('hard', 'hard', [['hard1', 1, 'Clear 1 Hard stage', {gems:50}], ['hard5', 5, 'Clear 5 Hard stages', {gems:100}], ['hard10', 10, 'Clear 10 Hard stages', {gems:200}],
-    ['hard15', 15, 'Clear 15 Hard stages', {gems:300}], ['hard20', 20, 'Clear all 20 Hard stages', {gems:500}]]),
+    ['hard15', 15, 'Clear 15 Hard stages', {gems:300}], ['hard20', 20, 'Clear 20 Hard stages', {gems:500}], ['hard25', 25, 'Clear 25 Hard stages', {gems:600}], ['hard30', 30, 'Clear all 30 Hard stages', {gems:800}]]),
   ...CHAIN('pvp', 'pvpWins', [['pvp1', 1, 'Win a PvP match (last one standing)', {gems:150}], ['pvp3', 3, 'Win 3 PvP matches', {gems:200}], ['pvp5', 5, 'Win 5 PvP matches', {gems:300}],
     ['pvp10', 10, 'Win 10 PvP matches', {gems:500}]]),
   ...CHAIN('wave', 'best', [['w10', 10, 'Clear wave 10 in a run', {gems:20}], ['w20', 20, 'Clear wave 20 in a run', {gems:40}], ['w30', 30, 'Clear all 30 waves in a run', {gems:60}]]),
@@ -75,8 +75,8 @@ const backbar = title => `<div class="row" style="margin:4px 0 8px"><button clas
 /* ---------- shared bits ---------- */
 const rarCol = H => RARITY[H.rar].col;
 function heroCard(id, extra = '', attrs = '', o = {}){
-  const H = HEROES[id], own = owned(id) || o.battle, border = o.slot || (own ? rarCol(H) : '#33405e');
-  return `<button class="hc ${own ? '' : 'unowned'} ${o.slot ? 'slotc' : ''} ${extra}" style="--rc:${border};--rar:${rarCol(H)}" data-hero="${id}" ${attrs}><img src="${cardArt(id, own)}" alt="">${own ? `<span class="cost">${H.cost}</span>` : ''}${own && H.captain ? '<span class="cap">CAPT</span>' : ''}${o.stars ? `<span class="starrow">${'★'.repeat(o.stars)}</span>` : ''}<div class="nm otl">${H.name}</div></button>`;
+  const H = HEROES[id], own = owned(id) || o.battle, border = o.slot || rarCol(H);
+  return `<button class="hc ${own ? '' : 'unowned'} ${o.slot ? 'slotc' : ''} ${extra}" style="--rc:${border};--rar:${rarCol(H)}" data-hero="${id}" ${attrs}><img src="${cardArt(id, own)}" alt="">${own ? `<span class="cost">${H.cost}</span>` : ''}${own && H.captain ? '<span class="cap">CAPT</span>' : ''}${o.stars ? `<span class="starrow">${'★'.repeat(o.stars)}</span>` : ''}<span class="rtag">${RARITY[H.rar].name}</span><div class="nm otl">${H.name}</div></button>`;
 }
 const crewIcon = c => cardArt(c.captain, true);   // crew icon = its captain's portrait
 function heroModal(id){
@@ -84,7 +84,7 @@ function heroModal(id){
   if(!owned(id)){
     modal(`<div class="row" style="align-items:flex-start;gap:12px"><div style="width:110px;flex-shrink:0">${heroCard(id)}</div>
       <div><div class="h1" style="font-size:30px;margin:0">${H.name}</div><div class="muted" style="font-weight:800">${C.name} · <span style="color:${Rr.col}">${Rr.name}</span></div>
-      <div class="muted" style="font-size:12.5px;margin-top:6px">Summon to unlock this hero, or buy them in the Shard Shop for ${SHARD_PRICE} Shards.</div></div></div>
+      <div class="muted" style="font-size:12.5px;margin-top:6px">Summon to unlock this hero, or buy them in the Shard Shop for ${priceOf(H)} Shards.</div></div></div>
       <div class="row" style="justify-content:center;margin-top:12px"><button class="btn ghost" id="mclose">Close</button><button class="btn" data-tab="summon" id="mgo">Summon</button></div>`);
     $('#mclose').onclick = closeModal; $('#mgo').addEventListener('click', closeModal); return;
   }
@@ -105,7 +105,6 @@ RENDER.home = () => {
   $('#s-home').innerHTML = `
     <div class="scene"><div class="bg" role="img" aria-label="Crown of Seas key art"></div>
       <div class="scenebtns" style="grid-template-columns:1fr"><button class="btn glow" data-tab="play" style="font-size:24px">Play</button></div></div>
-    <div class="row between" style="margin-top:8px"><div><div class="otl" style="font-size:26px;line-height:1">CHESS TD</div><div class="muted" style="font-size:12px;font-weight:800">Tower defense on a chess board · 12 crews · ${STAGE_N} Quest stages · PvP</div></div></div>
     <div class="tiles">
       <button class="mode" data-tab="collection"><b>Collection</b><small>${S.owned.length}/139 heroes · ${activeCrews().length}/12 crews</small></button>
       <button class="mode" data-tab="summon"><b>Grand Summon</b><small>1x 300 coins · 10x guarantees Epic</small></button>
@@ -141,54 +140,55 @@ RENDER.crew = () => {
   $('#s-crew').innerHTML = `${backbar(c.name)}
     <div class="card" style="border-color:${c.col};margin-bottom:10px"><div class="row between"><b style="color:${c.col}">${n}/${c.ids.length} Owned</b><span class="muted" style="font-weight:800">${n ? 'Active for battle' : 'Own 1 hero to activate'}</span></div>
       <div class="muted" style="font-size:12px;margin-top:4px;line-height:1.55">Captain: ${HEROES[c.captain].name}<br>${SYN_N.map((k, i) => `<b style="color:var(--ink)">${k}:</b> ${synDesc(c.id, i+1)}`).join('<br>')}</div></div>
-    <div class="hgrid">${c.ids.map(id => heroCard(id)).join('')}</div>`;
+    <div class="hgrid">${c.ids.slice().sort(byRarity).map(id => heroCard(id)).join('')}</div>`;
   $('#s-crew').querySelectorAll('[data-hero]').forEach(b => b.onclick = () => heroModal(+b.dataset.hero));
 };
 
 /* ---------- SUMMON (gacha) ---------- */
 const PULL = {1:{coins:300, gems:30}, 10:{coins:2700, gems:270}};
-const RATES = [['L', 0.03], ['E', 0.12], ['R', 0.25], ['C', 0.60]];
-const PITY = 90, DUP_SHARDS = 20, SHARD_PRICE = 100;
+const RATES = Object.entries(RARITY).map(([k, r]) => [k, r.rate]).reverse();
+const PITY = 90, priceOf = H => RARITY[H.rar].price, dupOf = H => RARITY[H.rar].dup;
+const byRarity = (x, y) => RARITY[HEROES[y].rar].ord - RARITY[HEROES[x].rar].ord || x - y;
 let shardFilter = 'all';
 RENDER.summon = () => {
   const can = (n, cur) => S[cur] >= PULL[n][cur];
-  const pool = HEROES.filter(h => !owned(h.id) && (shardFilter === 'all' || h.crew === shardFilter));
+  const pool = HEROES.filter(h => !owned(h.id) && (shardFilter === 'all' || h.crew === shardFilter)).sort((x, y) => byRarity(x.id, y.id));
   $('#s-summon').innerHTML = `<div class="row between"><div class="h1">Summon</div><span class="cur" style="padding-left:9px">Unlocked ${S.owned.length}/${HEROES.length}</span></div>
     <div class="gbanner"><div class="gbg"></div><div class="gtxt"><div class="otl" style="font-size:34px;line-height:1">GRAND SUMMON</div>
       <div style="font-weight:800;font-size:12px">All 139 heroes · 12 crews</div>
-      <div class="rates">Common 60% · Rare 25% · Epic 12% · Legendary 3%</div>
-      <div class="pitybox"><b>Legendary guaranteed in ${PITY - S.pity} pulls</b><div class="bar"><i style="width:${S.pity/PITY*100}%"></i></div><small>Guaranteed Epic or better in every 10x</small></div></div></div>
+      <div class="rates">${Object.values(RARITY).map(r => `<span style="color:${r.col}">${r.name} ${Math.round(r.rate*100)}%</span>`).join(' · ')}</div>
+      <div class="pitybox"><b>Legendary or better guaranteed in ${PITY - S.pity} pulls</b><div class="bar"><i style="width:${S.pity/PITY*100}%"></i></div><small>Guaranteed Epic or better in every 10x</small></div></div></div>
     <div class="pullgrid">
       <button class="btn blue" data-pull="1:coins" ${can(1,'coins') ? '' : 'disabled'}>1x · 300 <i class="ic coin">C</i></button>
       <button class="btn blue" data-pull="1:gems" ${can(1,'gems') ? '' : 'disabled'}>1x · 30 <i class="ic gem"></i></button>
       <button class="btn glow" data-pull="10:coins" ${can(10,'coins') ? '' : 'disabled'}>10x · 2700 <i class="ic coin">C</i></button>
       <button class="btn glow" data-pull="10:gems" ${can(10,'gems') ? '' : 'disabled'}>10x · 270 <i class="ic gem"></i></button></div>
-    <div class="note">Duplicates turn into ${DUP_SHARDS} Shards. Earn coins and gems from runs and quests.</div>
+    <div class="note">Duplicates turn into Shards (${Object.values(RARITY).map(r => r.dup).join(' / ')} by rarity). Earn coins and gems from runs and quests.</div>
     <div class="card" style="margin-top:12px"><div class="row between"><div class="h2" style="margin:0">Shard Shop</div><span class="cur"><i class="ic shard"></i>${fmt(S.shards)}</span></div>
-      <div class="muted" style="font-size:12px;margin:2px 0 8px">Buy any hero you don't own for ${SHARD_PRICE} Shards.</div>
+      <div class="muted" style="font-size:12px;margin:2px 0 8px">Buy any hero you don't own with Shards. Rarer heroes cost more: ${Object.values(RARITY).map(r => `<b style="color:${r.col}">${r.name} ${fmt(r.price)}</b>`).join(' · ')}</div>
       <div class="crewtabs"><button class="${shardFilter === 'all' ? 'on' : ''}" style="--cc:#9db0d6" data-sf="all">All ${S.owned.length}/${HEROES.length}</button>${CREWS.map(c => `<button class="${shardFilter === c.id ? 'on' : ''}" style="--cc:${c.col}" data-sf="${c.id}">${c.name.split(' ')[0]} ${ownedIn(c.id).length}/${c.ids.length}</button>`).join('')}</div>
-      ${pool.length ? `<div class="hgrid">${pool.map(h => `<div class="shopitem">${heroCard(h.id)}<div class="sn">${h.name}</div><button class="btn sm" data-shard="${h.id}" ${S.shards < SHARD_PRICE ? 'disabled' : ''}>${SHARD_PRICE} <i class="ic shard"></i></button></div>`).join('')}</div>`
+      ${pool.length ? `<div class="hgrid">${pool.map(h => `<div class="shopitem">${heroCard(h.id)}<div class="sn">${h.name}</div><button class="btn sm" data-shard="${h.id}" ${S.shards < priceOf(h) ? 'disabled' : ''}>${fmt(priceOf(h))} <i class="ic shard"></i></button></div>`).join('')}</div>`
         : '<div class="muted">You own every hero here.</div>'}</div>`;
   const el = $('#s-summon');
   el.querySelectorAll('[data-pull]').forEach(b => b.onclick = () => { const [n, cur] = b.dataset.pull.split(':'); summon(+n, cur); });
   el.querySelectorAll('[data-sf]').forEach(b => b.onclick = () => { shardFilter = b.dataset.sf; RENDER.summon(); });
   el.querySelectorAll('.shopitem [data-hero]').forEach(b => b.onclick = () => heroModal(+b.dataset.hero));
   el.querySelectorAll('[data-shard]').forEach(b => b.onclick = () => { const id = +b.dataset.shard;
-    if(S.shards < SHARD_PRICE || owned(id)) return; S.shards -= SHARD_PRICE; S.owned.push(id); persist(); playPulls([{id, isNew:true}]); });
+    const cost = priceOf(HEROES[id]); if(S.shards < cost || owned(id)) return; S.shards -= cost; S.owned.push(id); persist(); playPulls([{id, isNew:true}]); });
 };
 function rollRarity(){
-  S.pity++; if(S.pity >= PITY) return 'L';
+  S.pity++; if(S.pity >= PITY) return Math.random() < 0.2 ? 'M' : 'L';
   let r = Math.random(); for(const [rar, p] of RATES){ if(r < p) return rar; r -= p; } return 'C';
 }
 function summon(n, cur){
   const cost = PULL[n][cur]; if(S[cur] < cost) return toast(`Not enough ${cur}`);
   S[cur] -= cost;
   const rars = Array.from({length:n}, rollRarity);
-  if(n === 10 && !rars.some(r => r === 'E' || r === 'L')) rars[rars.length - 1] = 'E';   // guaranteed Epic in 10x
+  if(n === 10 && !rars.some(r => RARITY[r].ord >= 2)) rars[rars.length - 1] = 'E';   // guaranteed Epic in 10x
   const res = rars.map(rar => {
-    if(rar === 'L') S.pity = 0;
+    if(RARITY[rar].ord >= 3) S.pity = 0;
     const pool = HEROES.filter(h => h.rar === rar), H = pool[Math.floor(Math.random()*pool.length)];
-    if(owned(H.id)){ S.shards += DUP_SHARDS; return {id:H.id, isNew:false}; }
+    if(owned(H.id)){ S.shards += dupOf(H); return {id:H.id, isNew:false}; }
     S.owned.push(H.id); return {id:H.id, isNew:true};
   });
   persist(); playPulls(res, n, cur);
@@ -201,7 +201,7 @@ function playPulls(res, n, cur){
     <div class="pgrid ${res.length === 1 ? 'one' : ''}">${res.map((r, i) => { const H = HEROES[r.id];
       return `<div class="pcard rar${H.rar} ${r.isNew ? 'isnew' : ''}" style="--d:${0.25 + i*0.18}s"><div class="pin">
         <div class="pback"><span>♛</span></div>
-        <div class="pfront">${heroCard(r.id)}${r.isNew ? '<span class="newtag">NEW!</span>' : `<span class="duptag">+${DUP_SHARDS} Shards</span>`}</div></div></div>`; }).join('')}</div>
+        <div class="pfront">${heroCard(r.id)}${r.isNew ? '<span class="newtag">NEW!</span>' : `<span class="duptag">+${dupOf(H)} Shards</span>`}</div></div></div>`; }).join('')}</div>
     <div class="row" style="justify-content:center;position:relative"><button class="btn ghost" id="pdone">Done</button>${n ? `<button class="btn" id="pagain" ${S[cur] < PULL[n][cur] ? 'disabled' : ''}>Summon ${n}x again</button>` : ''}</div>`;
   $('#app').appendChild(fx);
   requestAnimationFrame(() => fx.classList.add('go'));
