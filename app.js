@@ -153,7 +153,7 @@ let shardFilter = 'all';
 RENDER.summon = () => {
   const can = (n, cur) => S[cur] >= PULL[n][cur];
   const pool = HEROES.filter(h => !owned(h.id) && (shardFilter === 'all' || h.crew === shardFilter));
-  $('#s-summon').innerHTML = `<div class="h1">Summon</div>
+  $('#s-summon').innerHTML = `<div class="row between"><div class="h1">Summon</div><span class="cur" style="padding-left:9px">Unlocked ${S.owned.length}/${HEROES.length}</span></div>
     <div class="gbanner"><div class="gbg"></div><div class="gtxt"><div class="otl" style="font-size:34px;line-height:1">GRAND SUMMON</div>
       <div style="font-weight:800;font-size:12px">All 139 heroes · 12 crews</div>
       <div class="rates">Common 60% · Rare 25% · Epic 12% · Legendary 3%</div>
@@ -166,7 +166,7 @@ RENDER.summon = () => {
     <div class="note">Duplicates turn into ${DUP_SHARDS} Shards. Earn coins and gems from runs and quests.</div>
     <div class="card" style="margin-top:12px"><div class="row between"><div class="h2" style="margin:0">Shard Shop</div><span class="cur"><i class="ic shard"></i>${fmt(S.shards)}</span></div>
       <div class="muted" style="font-size:12px;margin:2px 0 8px">Buy any hero you don't own for ${SHARD_PRICE} Shards.</div>
-      <div class="crewtabs"><button class="${shardFilter === 'all' ? 'on' : ''}" style="--cc:#9db0d6" data-sf="all">All</button>${CREWS.map(c => `<button class="${shardFilter === c.id ? 'on' : ''}" style="--cc:${c.col}" data-sf="${c.id}">${c.name.split(' ')[0]}</button>`).join('')}</div>
+      <div class="crewtabs"><button class="${shardFilter === 'all' ? 'on' : ''}" style="--cc:#9db0d6" data-sf="all">All ${S.owned.length}/${HEROES.length}</button>${CREWS.map(c => `<button class="${shardFilter === c.id ? 'on' : ''}" style="--cc:${c.col}" data-sf="${c.id}">${c.name.split(' ')[0]} ${ownedIn(c.id).length}/${c.ids.length}</button>`).join('')}</div>
       ${pool.length ? `<div class="hgrid">${pool.map(h => `<div class="shopitem">${heroCard(h.id)}<div class="sn">${h.name}</div><button class="btn sm" data-shard="${h.id}" ${S.shards < SHARD_PRICE ? 'disabled' : ''}>${SHARD_PRICE} <i class="ic shard"></i></button></div>`).join('')}</div>`
         : '<div class="muted">You own every hero here.</div>'}</div>`;
   const el = $('#s-summon');
@@ -226,12 +226,14 @@ RENDER.play = () => {
       <small>${ready ? '8 captains, endless waves. Outlast all 7 rivals to win.' : `Locked: get 5 crews to 7 heroes each (${pc}/5)`}</small>
       ${ready ? '' : `<div class="bar" style="margin-top:5px"><i style="width:${pc/5*100}%"></i></div>`}</div><span class="pvptag">${ready ? 'FIGHT' : '🔒'}</span></button>
     <div class="muted" style="font-weight:800;margin:10px 0 6px">Quest · 30 waves per stage. Normal pays coins, Hard pays gems. First clear pays double.</div>`;
+  html += '<div class="seas">';
   for(let sea = 0; sea < STAGE_N/5; sea++){
-    html += `<div class="seahd">${SEAS[sea]}</div><div class="stgrid">`;
+    html += `<div><div class="seahd">${SEAS[sea]}</div><div class="stgrid">`;
     for(let st = sea*5 + 1; st <= sea*5 + 5; st++){ const open = stageOpen(st), n = S.st.n[st], h = S.st.h[st];
       html += `<button class="stg ${open ? '' : 'locked'} ${n ? 'done' : ''} ${st === nextStage() && !n ? 'next' : ''}" data-stage="${st}"><b>${open ? st : '🔒'}</b><small>${MAP_NAMES[stageInfo(st).map]}</small><span class="marks"><i class="${n ? 'on' : ''}">N</i><i class="${h ? 'on h' : ''}">H</i></span></button>`; }
-    html += '</div>';
+    html += '</div></div>';
   }
+  html += '</div>';
   $('#s-play').innerHTML = html;
   $('#pvpgo').onclick = () => { if(!ready) return toast(`Get 5 crews to 7 heroes each to unlock PvP (${pc}/5)`); MODE = {kind:'pvp'}; setupStep = 1; go('setup'); };
   $('#s-play').querySelectorAll('[data-stage]').forEach(b => b.onclick = () => stageModal(+b.dataset.stage));
@@ -273,7 +275,9 @@ RENDER.setup = () => {
     el.innerHTML = `<div class="row" style="margin:4px 0 8px"><button class="btn ghost sm" data-tab="play" aria-label="Back">‹</button><div class="h1" style="margin:0">Setup · ${modeName(MODE)}</div></div>${steps}
       <div class="pickmsg" style="margin-bottom:8px">${act.length > 5 ? `Choose 5 of ${act.length} active crews for this run` : act.length === 0 ? 'You have no heroes yet — summon some first!' : act.length < 5 ? `${act.length}/5 crews active — summon heroes from more crews to unlock them` : 'All 5 active crews go to battle'}</div>
       <div class="crewgrid">${CREWS.map(c => { const n = ownedIn(c.id).length, i = crews.indexOf(c.id);
-        return `<button class="crewtile pick ${n ? '' : 'inactive'} ${i >= 0 ? 'sel' : ''}" style="--cc:${c.col}${i >= 0 ? `;--sc:${SLOT_COLS[i]}` : ''}" data-pick="${c.id}">${i >= 0 ? `<span class="num" style="background:${SLOT_COLS[i]}">${i+1}</span>` : ''}<img src="${crewIcon(c)}" alt=""><div><b>${c.name}</b><small>${n ? `${n} owned` : 'Not active · summon a hero'}</small></div></button>`; }).join('')}</div>
+        return `<button class="crewtile pick ${n ? '' : 'inactive'} ${i >= 0 ? 'sel' : ''}" style="--cc:${c.col}${i >= 0 ? `;--sc:${SLOT_COLS[i]}` : ''}" data-pick="${c.id}">${i >= 0 ? `<span class="num" style="background:${SLOT_COLS[i]}">${i+1}</span>` : ''}<img src="${crewIcon(c)}" alt=""><div><b>${c.name}</b><small>${n ? `${n} owned` : 'Not active · summon a hero'}</small></div>
+          <span class="buffs"><em>${SYN[c.id].scope === 'all' ? 'Buffs all towers' : 'Buffs this crew'}</em>${SYN_N.map((k, t) => `<span class="${n >= k ? 'ok' : ''}"><b>${k}</b><span>${synDesc(c.id, t + 1).replace(/^[^:]+: /, '')}</span></span>`).join('')}</span></button>`; }).join('')}</div>
+      <div class="note">2 / 4 / 6 = different towers of that crew on the board. Dimmed buffs need more heroes than you own.</div>
       ${cneed ? `<button class="btn wide" style="margin-top:12px" id="next1" ${crews.length === cneed ? '' : 'disabled'}>Next: pick towers</button>` : '<button class="btn wide glow" style="margin-top:12px" data-tab="summon">Go to Summon</button>'}`;
     el.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => { const id = b.dataset.pick;
       if(!act.includes(id)) return toast('Own at least 1 hero from this crew first. Try Summon!');
@@ -502,7 +506,7 @@ function endRun(win, quit){
     ${first ? '<div class="firstclr">FIRST CLEAR · REWARD ×2</div>' : ''}
     <div class="row" style="justify-content:center;gap:10px;margin:10px 0">${coins ? `<span class="cur"><i class="ic coin">C</i>+${fmt(coins)}</span>` : ''}${gems ? `<span class="cur"><i class="ic gem"></i>+${gems}</span>` : ''}${!coins && !gems ? '<span class="muted">No reward</span>' : ''}</div>
     ${R.treasures.length ? `<div class="muted" style="font-size:12px;margin-bottom:8px">Treasures: ${R.treasures.map(x => TR[x.id].icon + ' ' + TR[x.id].name).join(' · ')}</div>` : ''}
-    <div class="card" style="padding:10px"><b>Damage dealt</b>${top.length ? top.map(([id, v]) => `<div class="dmgrow"><img src="${cardArt(+id)}" alt=""><div><div>${HEROES[id].name}</div><div class="bar"><i style="width:${v/max*100}%"></i></div></div><span>${fmt(v)}</span></div>`).join('') : '<div class="muted">No damage dealt</div>'}</div>
+    <div class="card" style="padding:10px"><b>Damage dealt</b><div class="dmgs">${top.length ? top.map(([id, v]) => `<div class="dmgrow"><img src="${cardArt(+id)}" alt=""><div><div>${HEROES[id].name}</div><div class="bar"><i style="width:${v/max*100}%"></i></div></div><span>${fmt(v)}</span></div>`).join('') : '<div class="muted">No damage dealt</div>'}</div></div>
     <div class="row" style="justify-content:center;margin-top:12px;flex-wrap:wrap"><button class="btn ghost" id="rhome">Home</button><button class="btn ${canNext ? 'ghost' : 'red'}" id="ragain">${win && !pvp ? 'Replay' : 'Try again'}</button>${canNext ? `<button class="btn red" id="rnext">Stage ${m.stage + 1}</button>` : ''}</div>`);
   const exit = () => { closeModal(); $('#battle').classList.add('hidden'); cancelAnimationFrame(bRAF); R = null; };
   $('#rhome').onclick = () => { exit(); go('play', false); };
@@ -537,6 +541,11 @@ $('#av').closest('.who').onclick = () => {
     $('#ryes').onclick = () => { S = newSave(); persist(); closeModal(); go('home', false); askName(true); };
   };
 };
+
+/* ---------- rotate prompt ---------- */
+$('#upright').onclick = () => document.body.classList.add('upright');
+matchMedia('(orientation:portrait) and (max-width:600px) and (pointer:coarse)').addEventListener('change', e => {
+  if(e.matches && !document.body.classList.contains('upright') && R && !R.over && !R.paused && !R.choosing) $('#b-pause').click(); });
 
 /* ---------- boot ---------- */
 updateTop();

@@ -1,5 +1,5 @@
 // Offline cache for Crown of Seas: Chess TD. Bump VERSION whenever you publish a new build.
-const VERSION = 'chess-td-v11';
+const VERSION = 'chess-td-v12';
 const CORE = ['./', './index.html', './data.js', './art.js', './game.js', './treasure.js', './app.js', './manifest.webmanifest',
   './assets/home.webp', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 
